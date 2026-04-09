@@ -204,3 +204,44 @@ p.subtitle {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   animation: shimmer 1.5s infinite;
 }
+
+/* RESPONSIVE LAYOUT */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 2rem;
+}
+
+@media (max-width: 990px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .app-container {
+    padding: 1rem;
+  }
+
+  aside {
+    order: -1; /* Pone la barra de búsqueda arriba en móviles */
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  h1 {
+    font-size: 1.8rem;
+  }
+  
+  p.subtitle {
+    font-size: 0.95rem;
+  }
+
+  .dropzone {
+    padding: 2rem 1rem;
+  }
+  
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}

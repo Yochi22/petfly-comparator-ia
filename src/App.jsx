@@ -128,7 +128,7 @@ export default function App() {
         <p className="subtitle">Auditoría de certificados y carnets (PDF, PNG, JPG)</p>
       </header>
 
-      <main style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '2rem' }}>
+      <main className="main-grid">
         
         <section>
           <div className="glass card" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
