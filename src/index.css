@@ -120,6 +120,29 @@ p.subtitle {
   box-shadow: 0 0 0 3px rgba(255, 118, 53, 0.15);
 }
 
+.button-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.button-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--primary);
+}
+
+.button-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .data-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

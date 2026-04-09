@@ -28,24 +28,29 @@ export default function App() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchClients = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/clients`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setClients(data);
+        setError(null);
+      } else {
+        setError(data.error || "Error desconocido del servidor");
+        setClients([]);
+      }
+    } catch (err) {
+      setError("No se pudo conectar con el servidor.");
+      setClients([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     document.title = "Comparador Petfly";
-    fetch(`${API_URL}/api/clients`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setClients(data);
-        } else {
-          setError(data.error || "Error desconocido del servidor");
-          setClients([]);
-        }
-        setIsLoading(false);
-      })
-      .catch(err => {
-        setError("No se pudo conectar con el servidor.");
-        setClients([]);
-        setIsLoading(false);
-      });
+    fetchClients();
   }, []);
 
   const downloadReport = () => {
@@ -219,8 +224,18 @@ export default function App() {
 
         <aside>
           <div className="glass card" style={{ position: 'sticky', top: '2rem' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-               <Layers size={20} /> Base de Datos Petfly
+            <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={20} /> Base de Datos
+               </div>
+               <button 
+                onClick={fetchClients} 
+                disabled={isLoading}
+                className="button-icon"
+                title="Actualizar desde Google Sheets"
+               >
+                <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
+               </button>
             </h3>
             <div style={{ position: 'relative', marginBottom: '1rem' }}>
               <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
