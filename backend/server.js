@@ -41,7 +41,9 @@ async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
     return response.data;
   } catch (error) {
     if ((error.response?.status === 429 || error.response?.status === 503) && retries > 0) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Esperamos 12 segundos para respetar el límite estricto de 5 RPM si existe
+      console.log(`⚠️ Límite de cuota alcanzado. Reintentando en 12s... (${retries} intentos restantes)`);
+      await new Promise(resolve => setTimeout(resolve, 12000));
       return callGeminiDirect(prompt, buffer, mimeType, retries - 1);
     }
     throw error;
@@ -83,27 +85,24 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     
     const prompt = `
       Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'. 
-      Tu objetivo es analizar con precisión y exigencia extrema este DOCUMENTO o CARNET (PDF o Imagen).
+      Tu objetivo es auditar la veracidad de este DOCUMENTO o CARNET (PDF o Imagen).
       
       DATOS ESPERADOS DEL SISTEMA PETFLY:
       - HUMANO: Nombre: "${client.client_name}", ID/DNI/Pasaporte: "${client.client_id}", Teléfono: "${client.phone_number}", Email: "${client.client_email}", Dirección: "${client.address}", Género del Humano: "${client.client_gender}"
       - MASCOTA: Nombre: "${client.dog_name}", Edad: "${client.dog_age}", Raza: "${client.dog_breed}", Peso: "${client.dog_weight}", Género de la Mascota: "${client.dog_gender}", Número de Microchip: "${client.microchip_number}"
       - REQUISITOS: Fecha de Viaje: "${client.travel_date}", Vigencia Certificado: "${client.certificate_validity}"
 
-      INSTRUCCIONES DE VALIDACIÓN CRÍTICAS, SIGUE ESTOS PASOS:
-      1. COINCIDENCIA DE DATOS Y ORTOGRAFÍA: Compara cada dato de los "DATOS ESPERADOS" con la información visual del documento. Sé tolerante con errores tipográficos sutiles o variaciones ortográficas menores (ej. acentos faltantes, iniciales), pero penaliza discrepancias grandes o datos faltantes evidentes. Evalúa tanto en inglés como en español de forma transparente.
-      2. GÉNEROS GRAMATICALES (MUY IMPORTANTE): Revisa explícitamente el género de la mascota y del humano. El género en el documento debe coincidir conceptualmente (ej. "Macho/Hembra", "Male/Female", "M/F") con los DATOS ESPERADOS. Señala esto explícitamente.
-      3. CÓDIGO QR Y ENLACES WEB:
-         - Si existe un Código QR, debes identificar la URL o el texto incrustado en él.
-         - Revisa que la URL sea válida y lógica para un carnet veterinario o de registro.
-         - Comprueba si en la URL o texto del QR se perciben indicios de coincidencia con el Microchip, Nombre de Mascota o Dueño. 
-         - Si el QR o enlace contiene información que NO coincide, repórtalo gravemente.
-      
-      REGLAS DE FORMATO Y RESPUESTA (DEBES RESPONDER ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS, SÓLO ESTAS CLAVES EXACTAMENTE):
+      FILOSOFÍA DE AUDITORÍA (LECTURA FLEXIBLE):
+      1. PRIORIDAD DE COINCIDENCIA: Valida únicamente los datos que están PRESENTES en el documento.
+      2. DATOS AUSENTES: Si un dato (como el Microchip o el ID) NO aparece impreso en el documento, NO lo consideres un error ni penalices el puntaje por su ausencia. Solo repórtalo como "no presente" en el análisis.
+      3. DISCREPANCIAS GRAVES: El único motivo para invalidar (is_valid: false) es que un dato sí aparezca pero sea DIFERENTE al esperado (ej. un nombre distinto, un microchip que no coincide, o un género gramatical opuesto si el documento lo especifica).
+      4. GÉNEROS GRAMATICALES: Verifica si el documento usa pronombres o sustantivos de género (Macho/Hembra, Ella/Él). Si el documento es neutro, dalo por bueno.
+
+      REGLAS DE FORMATO Y RESPUESTA (DEBES RESPONDER ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS):
       {
         "is_valid": boolean,
-        "score": number,
-        "final_verdict": "string",
+        "score": number, // 0 a 100. Si los datos PRESENTES coinciden, el score debe ser alto (80-100).
+        "final_verdict": "string // Resumen profesional.",
         "qr_code_info": {
           "found": boolean,
           "url": "string o null",
