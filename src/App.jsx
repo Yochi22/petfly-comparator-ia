@@ -33,11 +33,17 @@ export default function App() {
     fetch(`${API_URL}/api/clients`)
       .then(res => res.json())
       .then(data => {
-        setClients(data);
+        if (Array.isArray(data)) {
+          setClients(data);
+        } else {
+          setError(data.error || "Error desconocido del servidor");
+          setClients([]);
+        }
         setIsLoading(false);
       })
       .catch(err => {
         setError("No se pudo conectar con el servidor.");
+        setClients([]);
         setIsLoading(false);
       });
   }, []);
