@@ -96,7 +96,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       1. PRECISIÓN DE CARACTERES: Errores tipográficos como duplicación de símbolos (ej. "++" en lugar de "+") en teléfonos o IDs deben ser reportados y penalizados en el score.
       2. VERIFICACIÓN DE QR: Localiza y DECODIFICA visualmente el código QR. 
          - ¿La URL o texto dentro del QR coincide con los datos de "${client.dog_name}" o el ID de registro "${client.client_id}"? 
-         - Si el QR redirige a un sitio genérico o no relacionado (ej. google.com o un sitio de plantillas), márcalo como "is_valid_url: false".
+         - Si el QR redirige a una página de inicio genérica (home) que no muestra datos específicos de la mascota, o si el link no carga información del registro, márcalo como "is_valid_url: false". No es necesario que sea un link de Petfly, pero debe ser el perfil oficial de la mascota.
       3. CONSISTENCIA DE GÉNERO (CRÍTICO): Verifica si el texto del documento usa pronombres o adjetivos que contradigan el género esperado:
          - Si la mascota es "${client.dog_gender}" (Hembra/Female), el uso de "EL", "Macho", "Him/He" o adjetivos masculinos es una DISCREPANCIA GRAVE.
          - Si el humano es "${client.client_gender}", verifica que los pronombres coincidan.
@@ -128,7 +128,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
     const result = JSON.parse(text);
 
-    // --- Validación en Vivo del Código QR ---
+   
     if (result.qr_code_info?.content && result.qr_code_info.content.startsWith('http')) {
       try {
         console.log(`🔍 Verificando link de QR en vivo: ${result.qr_code_info.content}`);
@@ -137,7 +137,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PetflyAuditor/1.0' }
         });
         
-        // Si el link carga pero no contiene el nombre de la mascota, alertar
+        
         const pageContent = qrResponse.data.toString().toLowerCase();
         const dogName = client.dog_name.toLowerCase();
         
