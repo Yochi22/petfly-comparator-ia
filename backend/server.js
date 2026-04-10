@@ -92,28 +92,34 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - MASCOTA: Nombre: "${client.dog_name}", Edad: "${client.dog_age}", Raza: "${client.dog_breed}", Peso: "${client.dog_weight}", Género de la Mascota: "${client.dog_gender}", Número de Microchip: "${client.microchip_number}"
       - REQUISITOS: Fecha de Viaje: "${client.travel_date}", Vigencia Certificado: "${client.certificate_validity}"
 
-      FILOSOFÍA DE AUDITORÍA (LECTURA FLEXIBLE):
-      1. PRIORIDAD DE COINCIDENCIA: Valida únicamente los datos que están PRESENTES en el documento.
-      2. DATOS AUSENTES: Si un dato (como el Microchip o el ID) NO aparece impreso en el documento, NO lo consideres un error ni penalices el puntaje por su ausencia. Solo repórtalo como "no presente" en el análisis.
-      3. DISCREPANCIAS GRAVES: El único motivo para invalidar (is_valid: false) es que un dato sí aparezca pero sea DIFERENTE al esperado (ej. un nombre distinto, un microchip que no coincide, o un género gramatical opuesto si el documento lo especifica).
-      4. GÉNEROS GRAMATICALES: Verifica si el documento usa pronombres o sustantivos de género (Macho/Hembra, Ella/Él). Si el documento es neutro, dalo por bueno.
+      FILOSOFÍA DE AUDITORÍA (LECTURA CRÍTICA):
+      1. PRECISIÓN DE CARACTERES: Errores tipográficos como duplicación de símbolos (ej. "++" en lugar de "+") en teléfonos o IDs deben ser reportados y penalizados en el score.
+      2. VERIFICACIÓN DE QR: Localiza y DECODIFICA visualmente el código QR. 
+         - ¿La URL o texto dentro del QR coincide con los datos de "${client.dog_name}" o el ID de registro "${client.client_id}"? 
+         - Si el QR redirige a un sitio genérico o no relacionado (ej. google.com o un sitio de plantillas), márcalo como "is_valid_url: false".
+      3. CONSISTENCIA DE GÉNERO (CRÍTICO): Verifica si el texto del documento usa pronombres o adjetivos que contradigan el género esperado:
+         - Si la mascota es "${client.dog_gender}" (Hembra/Female), el uso de "EL", "Macho", "Him/He" o adjetivos masculinos es una DISCREPANCIA GRAVE.
+         - Si el humano es "${client.client_gender}", verifica que los pronombres coincidan.
+      4. SOSPECHA DE FRAUDE: Si detectas inconsistencias visuales (fuentes diferentes, alineación pobre, o datos que no parecen reales como el "++"), sé severo con el 'is_valid'.
+      5. DATOS AUSENTES: Si un dato NO aparece impreso, repórtalo como "no presente" pero no penalices agresivamente a menos que sea un dato crítico.
 
       REGLAS DE FORMATO Y RESPUESTA (DEBES RESPONDER ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS):
       {
         "is_valid": boolean,
-        "score": number, // 0 a 100. Si los datos PRESENTES coinciden, el score debe ser alto (80-100).
-        "final_verdict": "string // Resumen profesional.",
+        "score": number, // Penaliza errores tipográficos (++) y discordancias de género grave.
+        "final_verdict": "string // Resumen profesional en español.",
         "qr_code_info": {
           "found": boolean,
-          "url": "string o null",
-          "is_valid_url": boolean,
-          "matches_data": boolean,
+          "content": "string o null", 
+          "is_valid_url": boolean, 
+          "matches_data": boolean, 
           "qr_analysis_details": "string"
         },
         "analysis": {
           "human_match": "string",
           "dog_match": "string",
-          "spelling_and_grammar_notes": "string"
+          "phone_validation": "string", 
+          "spelling_and_grammar_notes": "string" // Reporta aquí las discordancias de género (ej. uso de "EL" para una hembra).
         }
       }
     `;

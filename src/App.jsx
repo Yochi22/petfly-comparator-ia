@@ -11,7 +11,12 @@ import {
   RefreshCcw,
   Layers,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  QrCode,
+  Phone,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
@@ -27,6 +32,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedIndex, setExpandedIndex] = useState(null);
 
   const fetchClients = async () => {
     setIsLoading(true);
@@ -201,21 +207,91 @@ export default function App() {
                   className="glass card"
                   style={{ borderLeft: `6px solid ${res.error ? 'var(--error)' : (res.is_valid ? 'var(--accent)' : 'var(--warning)')}` }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h4 style={{ margin: 0 }}>{res.fileName}</h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                        {res.clientName ? `Cliente: ${res.clientName}` : '❌ Sin coincidencia'}
-                      </p>
+                  <div 
+                    style={{ cursor: 'pointer' }} 
+                    onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {res.is_valid ? <CheckCircle2 size={20} color="var(--accent)" /> : <XCircle size={20} color="var(--error)" />}
+                        <div>
+                          <h4 style={{ margin: 0 }}>{res.fileName}</h4>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                            {res.clientName ? `Cliente: ${res.clientName}` : '❌ Sin coincidencia'}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        {res.score !== undefined && <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{res.score}%</div>}
+                        {expandedIndex === i ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                      </div>
                     </div>
-                    {res.score !== undefined && <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{res.score}%</div>}
+                    
+                    {res.final_verdict && (
+                      <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: res.is_valid ? 'var(--text-dim)' : 'var(--error)', fontWeight: res.is_valid ? 400 : 600 }}>
+                        {res.final_verdict}
+                      </p>
+                    )}
                   </div>
-                  
-                  {res.final_verdict && (
-                    <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: res.is_valid ? 'var(--text-dim)' : 'var(--error)' }}>
-                      {res.final_verdict}
-                    </p>
-                  )}
+
+                  <AnimatePresence>
+                    {expandedIndex === i && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '1rem', paddingTop: '1rem' }}
+                      >
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div className="detail-box">
+                            <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 5px 0', fontSize: '0.8rem', color: 'var(--primary)' }}>
+                              <User size={14} /> Análisis Humano/Tel
+                            </h5>
+                            <p style={{ fontSize: '0.8rem' }}>{res.analysis?.human_match || 'No disponible'}</p>
+                            {res.analysis?.phone_validation && (
+                              <p style={{ fontSize: '0.8rem', marginTop: '5px', padding: '5px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                <Phone size={12} style={{ marginRight: '5px', verticalAlign: 'middle' }} />
+                                <strong>Teléfono:</strong> {res.analysis.phone_validation}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="detail-box">
+                            <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 5px 0', fontSize: '0.8rem', color: 'var(--accent)' }}>
+                              <ImageIcon size={14} /> Análisis Mascota
+                            </h5>
+                            <p style={{ fontSize: '0.8rem' }}>{res.analysis?.dog_match || 'No disponible'}</p>
+                          </div>
+
+                          {res.analysis?.spelling_and_grammar_notes && (
+                            <div className="detail-box" style={{ gridColumn: 'span 2', borderLeft: '3px solid var(--warning)' }}>
+                              <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 5px 0', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                                <Info size={14} /> Notas Gramaticales y Ortografía
+                              </h5>
+                              <p style={{ fontSize: '0.8rem', fontWeight: 500 }}>{res.analysis.spelling_and_grammar_notes}</p>
+                            </div>
+                          )}
+
+                          {res.qr_code_info && (
+                            <div className="detail-box" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
+                              <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--warning)' }}>
+                                <QrCode size={14} /> Validación de QR
+                              </h5>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>Link/Contenido: <code style={{ color: 'var(--text)' }}>{res.qr_code_info.content || 'N/A'}</code></span>
+                                <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: res.qr_code_info.is_valid_url ? 'var(--accent)' : 'var(--error)', color: 'white' }}>
+                                  {res.qr_code_info.is_valid_url ? 'Link Válido' : 'Link Sospechoso'}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '0.8rem', fontStyle: 'italic', borderLeft: '2px solid var(--warning)', paddingLeft: '8px' }}>
+                                {res.qr_code_info.qr_analysis_details}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               ))}
             </AnimatePresence>

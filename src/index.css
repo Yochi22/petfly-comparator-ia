@@ -268,3 +268,38 @@ p.subtitle {
     grid-template-columns: 1fr;
   }
 }
+.detail-box {
+  background: #F8FAFC;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+}
+
+.animate-spin { 
+  animation: spin 2s linear infinite; 
+} 
+
+@keyframes spin { 
+  to { transform: rotate(360deg); } 
+}
+
+/* Glassmorphism enhancements */
+.glass {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
