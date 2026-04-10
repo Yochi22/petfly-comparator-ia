@@ -126,7 +126,48 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     
     const data = await callGeminiDirect(prompt, req.file.buffer, mimeType);
     const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-    res.json(JSON.parse(text));
+    const result = JSON.parse(text);
+
+    // --- Validación en Vivo del Código QR ---
+    if (result.qr_code_info?.content && result.qr_code_info.content.startsWith('http')) {
+      try {
+        console.log(`🔍 Verificando link de QR en vivo: ${result.qr_code_info.content}`);
+        const qrResponse = await axios.get(result.qr_code_info.content, { 
+          timeout: 8000,
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PetflyAuditor/1.0' }
+        });
+        
+        // Si el link carga pero no contiene el nombre de la mascota, alertar
+        const pageContent = qrResponse.data.toString().toLowerCase();
+        const dogName = client.dog_name.toLowerCase();
+        
+        if (!pageContent.includes(dogName)) {
+           result.qr_code_info.matches_data = false;
+           result.qr_code_info.qr_analysis_details += " ADVERTENCIA: El link funciona pero NO se encontró mención de la mascota en el contenido de la página.";
+           result.score = Math.max(0, result.score - 20);
+        } else {
+           result.qr_code_info.matches_data = true;
+           result.qr_code_info.qr_analysis_details += " ✅ Verificación EXITOSA: El link es real y contiene mención de la mascota.";
+        }
+      } catch (error) {
+        console.error(`❌ El link del QR falló: ${error.message}`);
+        result.qr_code_info.is_valid_url = false;
+        result.qr_code_info.matches_data = false;
+        
+        const status = error.response?.status;
+        if (status === 404) {
+          result.qr_code_info.qr_analysis_details = "FRAUDE DETECTADO: El código QR apunta a una página inexistente (Error 404). El carnet es FALSO.";
+        } else {
+          result.qr_code_info.qr_analysis_details = `ERROR DE VALIDACIÓN: No se pudo acceder al link del QR (${status || 'Error de conexión'}).`;
+        }
+        
+        result.is_valid = false;
+        result.score = Math.min(result.score, 30);
+        result.final_verdict = `DOCUMENTO INVALIDADO: El código QR no es funcional (${status || 'Falla'}). ` + result.final_verdict;
+      }
+    }
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.response?.data?.error?.message || error.message });
   }
