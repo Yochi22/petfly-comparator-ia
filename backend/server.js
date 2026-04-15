@@ -178,8 +178,19 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     if (docType === 'CARNET' && expeditionDate && expiryDate) {
       dateSection = `
       ═══════════════════════════════════════════════
-      VALIDACIÓN DE FECHAS — DOCUMENTO TIPO CARNET
+      VALIDACIÓN — DOCUMENTO TIPO CARNET (MULTI-PÁGINA)
       ═══════════════════════════════════════════════
+
+      ⚠️ PÁGINAS: Este documento puede tener MÚLTIPLES PÁGINAS. Debes analizar y extraer
+      información de TODAS las páginas, no solo la primera.
+
+      ⚠️ IMÁGENES DECORATIVAS: El carnet puede contener imágenes o ilustraciones de fondo
+      genéricas (p.ej. silueta de un perro, foto de animal de raza). Estas son elementos
+      gráficos decorativos del diseño del carnet, NO son fotos reales de la mascota del cliente.
+      QUEDA PROHIBIDO evaluar, comentar o penalizar basándose en estas imágenes decorativas.
+      Solo evalúa los CAMPOS DE TEXTO del documento.
+
+      VALIDACIÓN DE FECHAS:
       Fechas calculadas por el sistema Petfly:
 
       DATE OF ISSUE (Fecha de Expedición) ESPERADA:
