@@ -206,29 +206,44 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Tu objetivo es auditar la veracidad de este DOCUMENTO o CARNET (PDF o Imagen).
       Nombre del archivo analizado: "${filename}" (Tipo detectado: ${docType})
 
+      ════════════════════════════════════════════════════════
+      REGLA ABSOLUTA — NO PENALICES FECHAS POR SER FUTURAS
+      ════════════════════════════════════════════════════════
+      El sistema Petfly emite certificados con fechas de expedición FUTURAS con total normalidad.
+      QUEDA TERMINANTEMENTE PROHIBIDO:
+        - Marcar un documento como inválido porque su fecha sea futura.
+        - Reducir el score porque la fecha esté en el futuro.
+        - Mencionar "fecha futura" como problema, irregularidad o sospecha de fraude.
+      La ÚNICA validación de fechas permitida es la descrita en la sección del tipo de documento.
+      ════════════════════════════════════════════════════════
+
       DATOS ESPERADOS DEL SISTEMA PETFLY:
       - HUMANO: Nombre: "${client.client_name}", ID/DNI/Pasaporte: "${client.client_id}", Teléfono: "${client.phone_number}", Dirección: "${client.address}", Género del Humano: "${client.client_gender}"
       - MASCOTA: Nombre: "${client.dog_name}", Edad: "${client.dog_age}", Raza: "${client.dog_breed}", Peso: "${client.dog_weight}", Género de la Mascota: "${client.dog_gender}", Número de Microchip: "${client.microchip_number}"
       - REQUISITOS: Fecha de Viaje: "${client.travel_date}"
       ${dateSection}
 
-      FILOSOFÍA DE AUDITORÍA (LECTURA CRÍTICA):
-      1. SOLO EVALÚA LO QUE EXISTE: Únicamente compara los campos que ESTÁN PRESENTES e impresos en el documento con los datos esperados. NO reportes ni penalices datos que no aparecen en el documento. Si un campo no está impreso, ignóralo.
-      2. PRECISIÓN DE CARACTERES: Errores tipográficos como "++" en teléfonos o IDs → penaliza en el score.
-      3. CONSISTENCIA DE GÉNERO (CRÍTICO): Si la mascota es "${client.dog_gender}", el uso de pronombres contrarios (ej. "EL"/"Macho"/"Him" para una hembra) es una DISCREPANCIA GRAVE.
-      4. SOSPECHA DE FRAUDE: Inconsistencias visuales (fuentes distintas, alineación pobre) → sé severo con is_valid.
+      FILOSOFÍA DE AUDITORÍA:
+      1. SOLO EVALÚA LO QUE EXISTE: Compara únicamente los campos PRESENTES en el documento. Si un campo no aparece impreso, ignóralo.
+      2. PRECISIÓN DE CARACTERES: Errores como "++" en teléfonos o IDs → penaliza en el score.
+      3. ERRORES GRAMATICALES Y ORTOGRÁFICOS (SIEMPRE OBLIGATORIO):
+         - Lee TODO el texto del documento buscando errores gramaticales, ortográficos o de redacción en cualquier idioma.
+         - Ejemplos: palabras mal escritas, frases sin cohesión, puntuación incorrecta, mezcla errónea de idiomas, concordancia incorrecta.
+         - SIEMPRE debes completar "spelling_and_grammar_notes". Si no hay errores escribe "Sin errores detectados". NUNCA dejes este campo vacío.
+      4. CONSISTENCIA DE GÉNERO (CRÍTICO): Si la mascota es "${client.dog_gender}", usar "EL"/"Macho"/"Him"/"His" para una hembra (o viceversa) es DISCREPANCIA GRAVE → penaliza fuerte.
+      5. FRAUDE VISUAL: Fuentes distintas, alineación pobre, datos que no encajan visualmente → sé severo con is_valid.
 
-      REGLAS DE FORMATO Y RESPUESTA (RESPONDE ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS):
+      REGLAS DE FORMATO Y RESPUESTA (JSON VÁLIDO SIN COMENTARIOS):
       {
         "is_valid": boolean,
         "score": number,
-        "final_verdict": "string — resumen profesional en español basado SOLO en los campos presentes.",
+        "final_verdict": "string — resumen profesional en español basado SOLO en los campos presentes y las reglas aplicadas.",
         "analysis": {
-          "human_match":             "string — campos del humano presentes en el doc y si coinciden.",
-          "dog_match":               "string — campos de la mascota presentes en el doc y si coinciden.",
-          "date_validation":         "string — resultado de la validación de fechas según las reglas del tipo de documento.",
-          "phone_validation":        "string — solo si el teléfono está presente en el documento.",
-          "spelling_and_grammar_notes": "string — discordancias de género u otros errores ortográficos detectados."
+          "human_match":                "string — campos del humano presentes y si coinciden.",
+          "dog_match":                  "string — campos de la mascota presentes y si coinciden.",
+          "date_validation":            "string — fechas encontradas en el doc vs fechas esperadas. Detalla el resultado.",
+          "phone_validation":           "string — solo si el teléfono está presente en el documento.",
+          "spelling_and_grammar_notes": "string — OBLIGATORIO: lista detallada de errores gramaticales/ortográficos, o 'Sin errores detectados'."
         }
       }
     `;
