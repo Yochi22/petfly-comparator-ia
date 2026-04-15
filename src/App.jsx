@@ -14,7 +14,6 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
-  QrCode,
   Phone,
   Info
 } from 'lucide-react';
@@ -93,8 +92,7 @@ export default function App() {
       let clientToValidate = selectedClient;
       if (!clientToValidate) {
         clientToValidate = clients.find(c => 
-          file.name.toLowerCase().includes(c.client_name.toLowerCase().split(' ')[0]) ||
-          file.name.toLowerCase().includes(c.pdf_keyword.toLowerCase())
+          file.name.toLowerCase().includes(c.client_name.toLowerCase().split(' ')[0])
         );
       }
 
@@ -135,7 +133,7 @@ export default function App() {
 
   const filteredClients = clients.filter(c => 
     c.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.pdf_keyword?.toLowerCase().includes(searchTerm.toLowerCase())
+    c.dog_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -263,6 +261,15 @@ export default function App() {
                             <p style={{ fontSize: '0.8rem' }}>{res.analysis?.dog_match || 'No disponible'}</p>
                           </div>
 
+                          {res.analysis?.date_validation && (
+                            <div className="detail-box" style={{ gridColumn: 'span 2', borderLeft: '3px solid var(--primary)' }}>
+                              <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 5px 0', fontSize: '0.8rem', color: 'var(--primary)' }}>
+                                📅 Validación de Fechas
+                              </h5>
+                              <p style={{ fontSize: '0.8rem', fontWeight: 500 }}>{res.analysis.date_validation}</p>
+                            </div>
+                          )}
+
                           {res.analysis?.spelling_and_grammar_notes && (
                             <div className="detail-box" style={{ gridColumn: 'span 2', borderLeft: '3px solid var(--warning)' }}>
                               <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 5px 0', fontSize: '0.8rem', color: 'var(--text-main)' }}>
@@ -272,22 +279,7 @@ export default function App() {
                             </div>
                           )}
 
-                          {res.qr_code_info && (
-                            <div className="detail-box" style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
-                              <h5 style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--warning)' }}>
-                                <QrCode size={14} /> Validación de QR
-                              </h5>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
-                                <span style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>Link/Contenido: <code style={{ color: 'var(--text)' }}>{res.qr_code_info.content || 'N/A'}</code></span>
-                                <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: res.qr_code_info.is_valid_url ? 'var(--accent)' : 'var(--error)', color: 'white' }}>
-                                  {res.qr_code_info.is_valid_url ? 'Link Válido' : 'Link Sospechoso'}
-                                </span>
-                              </div>
-                              <p style={{ fontSize: '0.8rem', fontStyle: 'italic', borderLeft: '2px solid var(--warning)', paddingLeft: '8px' }}>
-                                {res.qr_code_info.qr_analysis_details}
-                              </p>
-                            </div>
-                          )}
+
                         </div>
                       </motion.div>
                     )}
@@ -333,7 +325,7 @@ export default function App() {
                   onClick={() => setSelectedClient(c)}
                 >
                   <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{c.client_name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{c.pdf_keyword} • {c.dog_name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{c.dog_name} • {c.dog_breed}</div>
                 </div>
               ))}
             </div>

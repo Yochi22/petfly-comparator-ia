@@ -24,6 +24,64 @@ const jwt = new JWT({
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, jwt);
 
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+
+function parseExpedition(str) {
+  if (!str) return null;
+  const p = str.trim().split('/');
+  if (p.length !== 3) return null;
+  const [d, m, y] = p.map(Number);
+  return new Date(y, m - 1, d);
+}
+
+
+function parseYears(validity) {
+  if (!validity) return null;
+  const match = validity.match(/(\d+)/);
+  return match ? parseInt(match[1]) : null;
+}
+
+
+function addYears(date, n) {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + n);
+  return d;
+}
+
+
+function fmtCarnet(date) {
+  return `${MONTHS_SHORT[date.getMonth()]}/${String(date.getDate()).padStart(2,'0')}/${date.getFullYear()}`;
+}
+
+
+function fmtSlash(date) {
+  return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+}
+
+
+function fmtLong(date) {
+  return `${MONTHS_FULL[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+
+function prevMonth(date) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() - 1);
+  return d;
+}
+
+
+function detectDocType(filename) {
+  const lower = (filename || '').toLowerCase();
+  if (/^veri\s*medic/.test(lower)) return 'VERI_MEDIC';
+  if (lower.startsWith('carnet'))   return 'CARNET';
+  return 'GENERIC';
+}
+
+
+
 async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
   
@@ -41,7 +99,7 @@ async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
     return response.data;
   } catch (error) {
     if ((error.response?.status === 429 || error.response?.status === 503) && retries > 0) {
-      // Esperamos 12 segundos para respetar el límite estricto de 5 RPM si existe
+      
       console.log(`⚠️ Límite de cuota alcanzado. Reintentando en 12s... (${retries} intentos restantes)`);
       await new Promise(resolve => setTimeout(resolve, 12000));
       return callGeminiDirect(prompt, buffer, mimeType, retries - 1);
@@ -56,21 +114,21 @@ app.get('/api/clients', async (req, res) => {
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
     res.json(rows.map(row => ({
-      phone_number: row.get('phone_number'),
-      client_email: row.get('client_email'),
-      client_name: row.get('client_name'),
-      client_id: row.get('client_id'),
-      address: row.get('address'),
-      travel_date: row.get('travel_date'),
-      client_gender: row.get('client_gender'),
-      dog_gender: row.get('dog_gender'),
-      dog_name: row.get('dog_name'),
-      dog_age: row.get('dog_age'),
-      dog_breed: row.get('dog_breed'),
-      dog_weight: row.get('dog_weight'),
+      phone_number:         row.get('phone_number'),
+      client_email:         row.get('client_email'),
+      client_name:          row.get('client_name'),
+      client_id:            row.get('client_id'),
+      address:              row.get('address'),
+      travel_date:          row.get('travel_date'),
+      client_gender:        row.get('client_gender'),
+      dog_gender:           row.get('dog_gender'),
+      dog_name:             row.get('dog_name'),
+      dog_age:              row.get('dog_age'),
+      dog_breed:            row.get('dog_breed'),
+      dog_weight:           row.get('dog_weight'),
       certificate_validity: row.get('certificate_validity'),
-      microchip_number: row.get('microchip_number'),
-      pdf_keyword: row.get('pdf_keyword') || '',
+      expedition:           row.get('expedition') || '',
+      microchip_number:     row.get('microchip_number'),
     })));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -80,92 +138,104 @@ app.get('/api/clients', async (req, res) => {
 app.post('/api/validate', upload.single('file'), async (req, res) => {
   try {
     const { expectedData } = req.body;
-    const client = JSON.parse(expectedData);
-    const mimeType = req.file.mimetype; 
+    const client   = JSON.parse(expectedData);
+    const mimeType = req.file.mimetype;
+    const filename = req.file.originalname || '';
+    const docType  = detectDocType(filename);
+
     
+    const expeditionDate = parseExpedition(client.expedition);
+    const validityYears  = parseYears(client.certificate_validity);
+    const expiryDate     = (expeditionDate && validityYears) ? addYears(expeditionDate, validityYears) : null;
+
+    
+    let dateSection = '';
+
+    if (docType === 'VERI_MEDIC' && expeditionDate) {
+      const prev        = prevMonth(expeditionDate);
+      const prevShort   = MONTHS_SHORT[prev.getMonth()];
+      const currShort   = MONTHS_SHORT[expeditionDate.getMonth()];
+      const prevFull    = MONTHS_FULL[prev.getMonth()];
+      const currFull    = MONTHS_FULL[expeditionDate.getMonth()];
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN DE FECHAS — DOCUMENTO TIPO VERI MEDIC
+      ═══════════════════════════════════════════════
+      La fecha de expedición registrada en el sistema es: "${client.expedition}" (${fmtCarnet(expeditionDate)})
+
+      REGLA: La fecha que aparece en este certificado médico DEBE corresponder
+      al MES ACTUAL de expedición O al MES INMEDIATAMENTE ANTERIOR.
+
+      Meses VÁLIDOS:
+        • ${prevShort} ${prev.getFullYear()}  (${prevFull} ${prev.getFullYear()})
+        • ${currShort} ${expeditionDate.getFullYear()}  (${currFull} ${expeditionDate.getFullYear()})
+
+      Si la fecha del documento corresponde a cualquier otro mes/año → DISCREPANCIA GRAVE, penaliza fuerte el score.
+      Reporta en "date_validation" la fecha exacta encontrada en el documento y si entra en el rango válido.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'CARNET' && expeditionDate && expiryDate) {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN DE FECHAS — DOCUMENTO TIPO CARNET
+      ═══════════════════════════════════════════════
+      Fechas calculadas por el sistema Petfly:
+
+      DATE OF ISSUE (Fecha de Expedición) ESPERADA:
+        Formatos equivalentes aceptados:
+          • "${fmtCarnet(expeditionDate)}"
+          • "${fmtSlash(expeditionDate)}"
+          • "${fmtLong(expeditionDate)}"
+
+      DUE DATE (Fecha de Vencimiento) ESPERADA  [expedición + ${client.certificate_validity}]:
+        Formatos equivalentes aceptados:
+          • "${fmtCarnet(expiryDate)}"
+          • "${fmtSlash(expiryDate)}"
+          • "${fmtLong(expiryDate)}"
+
+      Si DATE OF ISSUE no coincide con la fecha de expedición esperada → DISCREPANCIA GRAVE.
+      Si DUE DATE no coincide con la fecha de vencimiento calculada → DISCREPANCIA GRAVE.
+      Penaliza el score de forma severa en cualquiera de los dos casos.
+      Reporta en "date_validation" las fechas encontradas en el documento y si coinciden con las esperadas.
+      ═══════════════════════════════════════════════`;
+    }
+
     const prompt = `
-      Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'. 
+      Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'.
       Tu objetivo es auditar la veracidad de este DOCUMENTO o CARNET (PDF o Imagen).
-      
+      Nombre del archivo analizado: "${filename}" (Tipo detectado: ${docType})
+
       DATOS ESPERADOS DEL SISTEMA PETFLY:
-      - HUMANO: Nombre: "${client.client_name}", ID/DNI/Pasaporte: "${client.client_id}", Teléfono: "${client.phone_number}", Email: "${client.client_email}", Dirección: "${client.address}", Género del Humano: "${client.client_gender}"
+      - HUMANO: Nombre: "${client.client_name}", ID/DNI/Pasaporte: "${client.client_id}", Teléfono: "${client.phone_number}", Dirección: "${client.address}", Género del Humano: "${client.client_gender}"
       - MASCOTA: Nombre: "${client.dog_name}", Edad: "${client.dog_age}", Raza: "${client.dog_breed}", Peso: "${client.dog_weight}", Género de la Mascota: "${client.dog_gender}", Número de Microchip: "${client.microchip_number}"
-      - REQUISITOS: Fecha de Viaje: "${client.travel_date}", Vigencia Certificado: "${client.certificate_validity}"
+      - REQUISITOS: Fecha de Viaje: "${client.travel_date}"
+      ${dateSection}
 
       FILOSOFÍA DE AUDITORÍA (LECTURA CRÍTICA):
-      1. PRECISIÓN DE CARACTERES: Errores tipográficos como duplicación de símbolos (ej. "++" en lugar de "+") en teléfonos o IDs deben ser reportados y penalizados en el score.
-      2. VERIFICACIÓN DE QR: Localiza y DECODIFICA visualmente el código QR. 
-         - ¿La URL o texto dentro del QR coincide con los datos de "${client.dog_name}" o el ID de registro "${client.client_id}"? 
-         - Si el QR redirige a una página de inicio genérica (home) que no muestra datos específicos de la mascota, o si el link no carga información del registro, márcalo como "is_valid_url: false". No es necesario que sea un link de Petfly, pero debe ser el perfil oficial de la mascota.
-      3. CONSISTENCIA DE GÉNERO (CRÍTICO): Verifica si el texto del documento usa pronombres o adjetivos que contradigan el género esperado:
-         - Si la mascota es "${client.dog_gender}" (Hembra/Female), el uso de "EL", "Macho", "Him/He" o adjetivos masculinos es una DISCREPANCIA GRAVE.
-         - Si el humano es "${client.client_gender}", verifica que los pronombres coincidan.
-      4. SOSPECHA DE FRAUDE: Si detectas inconsistencias visuales (fuentes diferentes, alineación pobre, o datos que no parecen reales como el "++"), sé severo con el 'is_valid'.
-      5. DATOS AUSENTES: Si un dato NO aparece impreso, repórtalo como "no presente" pero no penalices agresivamente a menos que sea un dato crítico.
+      1. SOLO EVALÚA LO QUE EXISTE: Únicamente compara los campos que ESTÁN PRESENTES e impresos en el documento con los datos esperados. NO reportes ni penalices datos que no aparecen en el documento. Si un campo no está impreso, ignóralo.
+      2. PRECISIÓN DE CARACTERES: Errores tipográficos como "++" en teléfonos o IDs → penaliza en el score.
+      3. CONSISTENCIA DE GÉNERO (CRÍTICO): Si la mascota es "${client.dog_gender}", el uso de pronombres contrarios (ej. "EL"/"Macho"/"Him" para una hembra) es una DISCREPANCIA GRAVE.
+      4. SOSPECHA DE FRAUDE: Inconsistencias visuales (fuentes distintas, alineación pobre) → sé severo con is_valid.
 
-      REGLAS DE FORMATO Y RESPUESTA (DEBES RESPONDER ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS):
+      REGLAS DE FORMATO Y RESPUESTA (RESPONDE ÚNICAMENTE EN JSON VÁLIDO SIN COMENTARIOS):
       {
         "is_valid": boolean,
-        "score": number, // Penaliza errores tipográficos (++) y discordancias de género grave.
-        "final_verdict": "string // Resumen profesional en español.",
-        "qr_code_info": {
-          "found": boolean,
-          "content": "string o null", 
-          "is_valid_url": boolean, 
-          "matches_data": boolean, 
-          "qr_analysis_details": "string"
-        },
+        "score": number,
+        "final_verdict": "string — resumen profesional en español basado SOLO en los campos presentes.",
         "analysis": {
-          "human_match": "string",
-          "dog_match": "string",
-          "phone_validation": "string", 
-          "spelling_and_grammar_notes": "string" // Reporta aquí las discordancias de género (ej. uso de "EL" para una hembra).
+          "human_match":             "string — campos del humano presentes en el doc y si coinciden.",
+          "dog_match":               "string — campos de la mascota presentes en el doc y si coinciden.",
+          "date_validation":         "string — resultado de la validación de fechas según las reglas del tipo de documento.",
+          "phone_validation":        "string — solo si el teléfono está presente en el documento.",
+          "spelling_and_grammar_notes": "string — discordancias de género u otros errores ortográficos detectados."
         }
       }
     `;
-    
-    const data = await callGeminiDirect(prompt, req.file.buffer, mimeType);
-    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-    const result = JSON.parse(text);
 
-   
-    if (result.qr_code_info?.content && result.qr_code_info.content.startsWith('http')) {
-      try {
-        console.log(`🔍 Verificando link de QR en vivo: ${result.qr_code_info.content}`);
-        const qrResponse = await axios.get(result.qr_code_info.content, { 
-          timeout: 8000,
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PetflyAuditor/1.0' }
-        });
-        
-        
-        const pageContent = qrResponse.data.toString().toLowerCase();
-        const dogName = client.dog_name.toLowerCase();
-        
-        if (!pageContent.includes(dogName)) {
-           result.qr_code_info.matches_data = false;
-           result.qr_code_info.qr_analysis_details += " ADVERTENCIA: El link funciona pero NO se encontró mención de la mascota en el contenido de la página.";
-           result.score = Math.max(0, result.score - 20);
-        } else {
-           result.qr_code_info.matches_data = true;
-           result.qr_code_info.qr_analysis_details += " ✅ Verificación EXITOSA: El link es real y contiene mención de la mascota.";
-        }
-      } catch (error) {
-        console.error(`❌ El link del QR falló: ${error.message}`);
-        result.qr_code_info.is_valid_url = false;
-        result.qr_code_info.matches_data = false;
-        
-        const status = error.response?.status;
-        if (status === 404) {
-          result.qr_code_info.qr_analysis_details = "FRAUDE DETECTADO: El código QR apunta a una página inexistente (Error 404). El carnet es FALSO.";
-        } else {
-          result.qr_code_info.qr_analysis_details = `ERROR DE VALIDACIÓN: No se pudo acceder al link del QR (${status || 'Error de conexión'}).`;
-        }
-        
-        result.is_valid = false;
-        result.score = Math.min(result.score, 30);
-        result.final_verdict = `DOCUMENTO INVALIDADO: El código QR no es funcional (${status || 'Falla'}). ` + result.final_verdict;
-      }
-    }
+    const data = await callGeminiDirect(prompt, req.file.buffer, mimeType);
+    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(text);
 
     res.json(result);
   } catch (error) {
