@@ -148,6 +148,11 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     const validityYears  = parseYears(client.certificate_validity);
     const expiryDate     = (expeditionDate && validityYears) ? addYears(expeditionDate, validityYears) : null;
 
+    // Debug log to verify date calculations
+    console.log(`📅 Expedición raw: "${client.expedition}" → parsed: ${expeditionDate}`);
+    console.log(`📅 Validez raw: "${client.certificate_validity}" → años: ${validityYears}`);
+    console.log(`📅 Vencimiento calculado: ${expiryDate} → ${expiryDate ? fmtCarnet(expiryDate) : 'null'}`);
+
     
     let dateSection = '';
 
@@ -190,25 +195,34 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       QUEDA PROHIBIDO evaluar, comentar o penalizar basándose en estas imágenes decorativas.
       Solo evalúa los CAMPOS DE TEXTO del documento.
 
-      VALIDACIÓN DE FECHAS:
-      Fechas calculadas por el sistema Petfly:
+      VALIDACIÓN DE FECHAS — MUY IMPORTANTE:
+      El sistema Petfly calculó estas fechas con precisión matemática. Debes respetarlas al pie de la letra.
 
       DATE OF ISSUE (Fecha de Expedición) ESPERADA:
+        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth()+1}), Año: ${expeditionDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtCarnet(expeditionDate)}"
           • "${fmtSlash(expeditionDate)}"
           • "${fmtLong(expeditionDate)}"
 
-      DUE DATE (Fecha de Vencimiento) ESPERADA  [expedición + ${client.certificate_validity}]:
+      DUE DATE (Fecha de Vencimiento) ESPERADA  [expedición + ${validityYears} año(s) = ${client.certificate_validity}]:
+        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth()+1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtCarnet(expiryDate)}"
           • "${fmtSlash(expiryDate)}"
           • "${fmtLong(expiryDate)}"
 
+      ⛔ CRÍTICO — REGLA DE ORO PARA DUE DATE:
+        - La fecha de expedición es el año ${expeditionDate.getFullYear()}.
+        - La validez es ${validityYears} año(s).
+        - Por lo tanto, el DUE DATE DEBE tener el año ${expiryDate.getFullYear()} — NO ${expeditionDate.getFullYear() + 1}, NO ${expeditionDate.getFullYear() + 2}, SOLO ${expiryDate.getFullYear()}.
+        - Si el documento muestra cualquier otro año en el DUE DATE → DISCREPANCIA GRAVE, penaliza el score severamente.
+        - Ejemplo de error a detectar: si el doc dice "Apr/14/${expeditionDate.getFullYear() + 1}" pero lo correcto es "${fmtCarnet(expiryDate)}", eso ES una discrepancia grave.
+
       Si DATE OF ISSUE no coincide con la fecha de expedición esperada → DISCREPANCIA GRAVE.
-      Si DUE DATE no coincide con la fecha de vencimiento calculada → DISCREPANCIA GRAVE.
+      Si DUE DATE no coincide exactamente (día, mes Y AÑO) con la fecha de vencimiento calculada → DISCREPANCIA GRAVE.
       Penaliza el score de forma severa en cualquiera de los dos casos.
-      Reporta en "date_validation" las fechas encontradas en el documento y si coinciden con las esperadas.
+      Reporta en "date_validation" las fechas encontradas en el documento vs las esperadas, indicando explícitamente si el año coincide.
       ═══════════════════════════════════════════════`;
     }
 
@@ -218,14 +232,16 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Nombre del archivo analizado: "${filename}" (Tipo detectado: ${docType})
 
       ════════════════════════════════════════════════════════
-      REGLA ABSOLUTA — NO PENALICES FECHAS POR SER FUTURAS
+      REGLA ABSOLUTA — NO PENALICES FECHAS SOLO POR SER FUTURAS
       ════════════════════════════════════════════════════════
-      El sistema Petfly emite certificados con fechas de expedición FUTURAS con total normalidad.
+      El sistema Petfly emite certificados con fechas de expedición y vencimiento FUTURAS con total normalidad.
       QUEDA TERMINANTEMENTE PROHIBIDO:
-        - Marcar un documento como inválido porque su fecha sea futura.
-        - Reducir el score porque la fecha esté en el futuro.
+        - Marcar un documento como inválido O reducir el score SIMPLEMENTE porque su fecha sea futura.
         - Mencionar "fecha futura" como problema, irregularidad o sospecha de fraude.
-      La ÚNICA validación de fechas permitida es la descrita en la sección del tipo de documento.
+        
+      ⚠️ EXCEPCIÓN CRÍTICA - COINCIDENCIA DE FECHAS:
+      Esto NO significa que aceptes cualquier fecha. Las fechas impresas en el documento DEBEN COINCIDIR EXACTAMENTE con las fechas ESPERADAS que se indican en este prompt. 
+      Si la fecha esperada de vencimiento es en 2029, y el documento dice 2027, ESTO ES UNA DISCREPANCIA GRAVE Y DEBE SER REPORTADA Y PENALIZADA CON SEVERIDAD, independientemente de que ambas fechas estén en el futuro.
       ════════════════════════════════════════════════════════
 
       DATOS ESPERADOS DEL SISTEMA PETFLY:
