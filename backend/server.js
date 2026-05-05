@@ -239,9 +239,11 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
         - Marcar un documento como inválido O reducir el score SIMPLEMENTE porque su fecha sea futura.
         - Mencionar "fecha futura" como problema, irregularidad o sospecha de fraude.
         
-      ⚠️ EXCEPCIÓN CRÍTICA - COINCIDENCIA DE FECHAS:
-      Esto NO significa que aceptes cualquier fecha. Las fechas impresas en el documento DEBEN COINCIDIR EXACTAMENTE con las fechas ESPERADAS que se indican en este prompt. 
-      Si la fecha esperada de vencimiento es en 2029, y el documento dice 2027, ESTO ES UNA DISCREPANCIA GRAVE Y DEBE SER REPORTADA Y PENALIZADA CON SEVERIDAD, independientemente de que ambas fechas estén en el futuro.
+      ⚠️ EXCEPCIÓN CRÍTICA - APLICACIÓN ESTRICTA DE REGLAS DE FECHAS:
+      Esto NO significa que ignores errores de fechas o aceptes cualquier fecha futura. DEBES aplicar estrictamente las reglas específicas que se indican más abajo en este prompt:
+      - En CARNET: Las fechas deben coincidir EXACTAMENTE (día, mes y AÑO esperado). Si se espera 2029 y dice 2027, ES DISCREPANCIA GRAVE.
+      - En VERI MEDIC: El documento debe corresponder SOLO al mes actual de expedición o al anterior, tal como se definirá abajo.
+      Siempre penaliza severamente los errores en las fechas si no cumplen estas reglas, sin importar si las fechas involucradas están en el futuro.
       ════════════════════════════════════════════════════════
 
       DATOS ESPERADOS DEL SISTEMA PETFLY:
@@ -257,7 +259,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
          - Lee TODO el texto del documento buscando errores gramaticales, ortográficos o de redacción en cualquier idioma.
          - Ejemplos: palabras mal escritas, frases sin cohesión, puntuación incorrecta, mezcla errónea de idiomas, concordancia incorrecta.
          - SIEMPRE debes completar "spelling_and_grammar_notes". Si no hay errores escribe "Sin errores detectados". NUNCA dejes este campo vacío.
-      4. CONSISTENCIA DE GÉNERO (CRÍTICO): Si la mascota es "${client.dog_gender}", usar "EL"/"Macho"/"Him"/"His" para una hembra (o viceversa) es DISCREPANCIA GRAVE → penaliza fuerte.
+      4. IGNORAR GÉNERO DE LA MASCOTA: Aunque el sistema indique un género (ej. Hembra), los documentos siempre tratarán a la mascota en masculino. NUNCA penalices, comentes ni audites la consistencia de género de la mascota.
       5. FRAUDE VISUAL: Fuentes distintas, alineación pobre, datos que no encajan visualmente → sé severo con is_valid.
 
       REGLAS DE FORMATO Y RESPUESTA (JSON VÁLIDO SIN COMENTARIOS):
