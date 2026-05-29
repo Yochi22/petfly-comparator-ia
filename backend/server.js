@@ -85,7 +85,7 @@ function detectDocType(filename) {
 
 
 async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   
   const payload = {
     contents: [{
@@ -295,7 +295,7 @@ app.get('/api/test', async (req, res) => {
     if (!GEMINI_API_KEY) {
       throw new Error("La variable GEMINI_API_KEY no está definida en el entorno.");
     }
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await axios.post(url, { contents: [{ parts: [{ text: "Hi" }] }] });
     console.log("✅ Conexión con Gemini exitosa");
     res.json({ 
