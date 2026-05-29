@@ -314,4 +314,13 @@ app.get('/api/test', async (req, res) => {
   }
 });
 
+app.get('/api/debug-ip', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.ipify.org?format=json');
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`🚀 Comparador Petfly en puerto ${PORT}`));
