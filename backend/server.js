@@ -85,7 +85,7 @@ function detectDocType(filename) {
 
 
 async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   
   const payload = {
     contents: [{
@@ -295,7 +295,7 @@ app.get('/api/test', async (req, res) => {
     if (!GEMINI_API_KEY) {
       throw new Error("La variable GEMINI_API_KEY no está definida en el entorno.");
     }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await axios.post(url, { contents: [{ parts: [{ text: "Hi" }] }] });
     console.log("✅ Conexión con Gemini exitosa");
     res.json({ 
@@ -317,7 +317,10 @@ app.get('/api/test', async (req, res) => {
 app.get('/api/debug-ip', async (req, res) => {
   try {
     const response = await axios.get('https://api.ipify.org?format=json');
-    res.json(response.data);
+    res.json({
+      server_ip: response.data.ip,
+      note: "Si esta IP no es de EE.UU., Google bloqueará Gemini."
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
