@@ -1,17 +1,19 @@
+console.log("🟢 Iniciando servidor backend...");
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -289,11 +291,26 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
 
 app.get('/api/test', async (req, res) => {
   try {
+    console.log("🔍 Probando conexión con Gemini...");
+    if (!GEMINI_API_KEY) {
+      throw new Error("La variable GEMINI_API_KEY no está definida en el entorno.");
+    }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-    await axios.post(url, { contents: [{ parts: [{ text: "Hi" }] }] });
-    res.json({ message: "¡PETFLY ONLINE!", response: "Conectado" });
+    const response = await axios.post(url, { contents: [{ parts: [{ text: "Hi" }] }] });
+    console.log("✅ Conexión con Gemini exitosa");
+    res.json({ 
+      message: "¡PETFLY ONLINE!", 
+      response: "Conectado", 
+      model: "gemini-flash-latest",
+      status: response.status
+    });
   } catch (error) {
-    res.status(500).json({ error: "Error de conexión." });
+    const errorDetails = error.response?.data || error.message;
+    console.error("❌ Error en la prueba de Gemini:", errorDetails);
+    res.status(500).json({ 
+      error: "Error de conexión.", 
+      details: errorDetails 
+    });
   }
 });
 
