@@ -68,6 +68,11 @@ function fmtLong(date) {
 }
 
 
+function fmtDash(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+
 function prevMonth(date) {
   const d = new Date(date);
   d.setMonth(d.getMonth() - 1);
@@ -79,6 +84,7 @@ function detectDocType(filename) {
   const lower = (filename || '').toLowerCase();
   if (/^veri\s*medic/.test(lower)) return 'VERI_MEDIC';
   if (lower.startsWith('carnet'))   return 'CARNET';
+  if (lower.startsWith('revision')) return 'REVISION';
   return 'GENERIC';
 }
 
@@ -228,6 +234,45 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       ═══════════════════════════════════════════════`;
     }
 
+    if (docType === 'REVISION' && expeditionDate && expiryDate) {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO REVISIÓN
+      ═══════════════════════════════════════════════
+
+      VALIDACIÓN DE FECHAS — MUY IMPORTANTE:
+      El sistema Petfly calculó estas fechas con precisión matemática. Debes respetarlas al pie de la letra.
+
+      CERTIFICACIÓN ESPERADA (Expedición):
+        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth()+1}), Año: ${expeditionDate.getFullYear()}
+        Formatos equivalentes aceptados:
+          • "${fmtDash(expeditionDate)}"
+          • "${fmtCarnet(expeditionDate)}"
+          • "${fmtSlash(expeditionDate)}"
+          • "${fmtLong(expeditionDate)}"
+
+      VENCIMIENTO ESPERADA  [expedición + ${validityYears} año(s) = ${client.certificate_validity}]:
+        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth()+1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
+        Formatos equivalentes aceptados:
+          • "${fmtDash(expiryDate)}"
+          • "${fmtCarnet(expiryDate)}"
+          • "${fmtSlash(expiryDate)}"
+          • "${fmtLong(expiryDate)}"
+
+      ⛔ CRÍTICO — REGLA DE ORO PARA FECHAS:
+        - La fecha de CERTIFICACIÓN es el año ${expeditionDate.getFullYear()}.
+        - La validez es ${validityYears} año(s).
+        - Por lo tanto, el VENCIMIENTO DEBE tener el año ${expiryDate.getFullYear()} — NO el mismo año de certificación (${expeditionDate.getFullYear()}).
+        - Si el documento muestra el mismo año de certificación en el VENCIMIENTO, ES ERROR (Discrepancia GRAVE).
+        - Ejemplo de error a detectar: Si CERTIFICACIÓN es "${fmtDash(expeditionDate)}" y VENCIMIENTO muestra el mismo año de expedición en vez de "${fmtDash(expiryDate)}", debes penalizar severamente.
+
+      Si CERTIFICACIÓN no coincide con la fecha de expedición esperada → DISCREPANCIA GRAVE.
+      Si VENCIMIENTO no coincide exactamente (día, mes Y AÑO) con la fecha calculada → DISCREPANCIA GRAVE.
+      Penaliza el score de forma severa en cualquiera de los dos casos.
+      Reporta en "date_validation" las fechas encontradas en el doc vs las esperadas, indicando explícitamente si existe este error.
+      ═══════════════════════════════════════════════`;
+    }
+
     const prompt = `
       Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'.
       Tu objetivo es auditar la veracidad de este DOCUMENTO o CARNET (PDF o Imagen).
@@ -243,7 +288,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
         
       ⚠️ EXCEPCIÓN CRÍTICA - APLICACIÓN ESTRICTA DE REGLAS DE FECHAS:
       Esto NO significa que ignores errores de fechas o aceptes cualquier fecha futura. DEBES aplicar estrictamente las reglas específicas que se indican más abajo en este prompt:
-      - En CARNET: Las fechas deben coincidir EXACTAMENTE (día, mes y AÑO esperado). Si se espera 2029 y dice 2027, ES DISCREPANCIA GRAVE.
+      - En CARNET o REVISIÓN: Las fechas deben coincidir EXACTAMENTE (día, mes y AÑO esperado). Si se espera 2029 y dice 2027 (o el mismo año de expedición erróneamente), ES DISCREPANCIA GRAVE.
       - En VERI MEDIC: El documento debe corresponder SOLO al mes actual de expedición o al anterior, tal como se definirá abajo.
       Siempre penaliza severamente los errores en las fechas si no cumplen estas reglas, sin importar si las fechas involucradas están en el futuro.
       ════════════════════════════════════════════════════════
