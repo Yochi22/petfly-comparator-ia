@@ -33,6 +33,12 @@ export default function App() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const clientsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const fetchClients = async () => {
     setIsLoading(true);
@@ -318,17 +324,52 @@ export default function App() {
               />
             </div>
             <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-              {filteredClients.map((c, i) => (
-                <div 
-                  key={i} 
-                  className="card" 
-                  style={{ marginBottom: '8px', border: selectedClient?.client_name === c.client_name ? '1px solid var(--primary)' : '1px solid transparent', cursor: 'pointer' }}
-                  onClick={() => setSelectedClient(c)}
-                >
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{c.client_name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{c.dog_name} • {c.dog_breed}</div>
-                </div>
-              ))}
+              {(() => {
+                const indexOfLastClient = currentPage * clientsPerPage;
+                const indexOfFirstClient = indexOfLastClient - clientsPerPage;
+                const currentClients = filteredClients.slice(indexOfFirstClient, indexOfLastClient);
+                const totalPages = Math.ceil(filteredClients.length / clientsPerPage);
+
+                return (
+                  <>
+                    {currentClients.map((c, i) => (
+                      <div 
+                        key={i} 
+                        className="card" 
+                        style={{ marginBottom: '8px', border: selectedClient?.client_name === c.client_name ? '1px solid var(--primary)' : '1px solid transparent', cursor: 'pointer' }}
+                        onClick={() => setSelectedClient(c)}
+                      >
+                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{c.client_name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{c.dog_name} • {c.dog_breed}</div>
+                      </div>
+                    ))}
+
+                    {totalPages > 1 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', padding: '0.5rem 0' }}>
+                        <button 
+                          className="button button-outline" 
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                        >
+                          Anterior
+                        </button>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                          Pág. {currentPage} de {totalPages}
+                        </span>
+                        <button 
+                          className="button button-outline" 
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </aside>
