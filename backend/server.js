@@ -337,7 +337,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       ═══════════════════════════════════════════════`;
     }
 
-    if (docType === 'CERTIFICACION ADI' && expeditionDate) {
+    if (docType === 'CERTIFICACION_ADI' && expeditionDate) {
       dateSection = `
       ═══════════════════════════════════════════════
       VALIDACIÓN — DOCUMENTO TIPO CERTIFICACIÓN ADI
