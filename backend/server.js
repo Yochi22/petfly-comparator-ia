@@ -81,7 +81,7 @@ function prevMonth(date) {
 
 
 function detectDocType(filename) {
-  const lower = (filename || '').toLowerCase();
+  const lower = (filename || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (/^veri\s*medic/.test(lower)) return 'VERI_MEDIC';
   if (lower.startsWith('carnet adi')) return 'CARNET_ADI';
   if (lower.startsWith('carnet'))   return 'CARNET';
