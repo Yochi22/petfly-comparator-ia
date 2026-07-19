@@ -26,8 +26,8 @@ const jwt = new JWT({
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, jwt);
 
 
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const MONTHS_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 
 function parseExpedition(str) {
@@ -54,12 +54,12 @@ function addYears(date, n) {
 
 
 function fmtCarnet(date) {
-  return `${MONTHS_SHORT[date.getMonth()]}/${String(date.getDate()).padStart(2,'0')}/${date.getFullYear()}`;
+  return `${MONTHS_SHORT[date.getMonth()]}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
 }
 
 
 function fmtSlash(date) {
-  return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 }
 
 
@@ -84,7 +84,7 @@ function detectDocType(filename) {
   const lower = (filename || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (/^veri\s*medic/.test(lower)) return 'VERI_MEDIC';
   if (lower.startsWith('carnet adi')) return 'CARNET_ADI';
-  if (lower.startsWith('carnet'))   return 'CARNET';
+  if (lower.startsWith('carnet')) return 'CARNET';
   if (lower.startsWith('revision')) return 'REVISION';
   if (lower.startsWith('informe entrenamiento')) return 'INFORME_ENTRENAMIENTO';
   if (lower.startsWith('certificacion adi')) return 'CERTIFICACION_ADI';
@@ -98,7 +98,7 @@ function detectDocType(filename) {
 
 async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
   const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-  
+
   const payload = {
     contents: [{
       parts: [
@@ -113,7 +113,7 @@ async function callGeminiDirect(prompt, buffer, mimeType, retries = 3) {
     return response.data;
   } catch (error) {
     if ((error.response?.status === 429 || error.response?.status === 503) && retries > 0) {
-      
+
       console.log(`⚠️ Límite de cuota alcanzado. Reintentando en 12s... (${retries} intentos restantes)`);
       await new Promise(resolve => setTimeout(resolve, 12000));
       return callGeminiDirect(prompt, buffer, mimeType, retries - 1);
@@ -128,21 +128,21 @@ app.get('/api/clients', async (req, res) => {
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
     res.json(rows.map(row => ({
-      phone_number:         row.get('phone_number'),
-      client_email:         row.get('client_email'),
-      client_name:          row.get('client_name'),
-      client_id:            row.get('client_id'),
-      address:              row.get('address'),
-      travel_date:          row.get('travel_date'),
-      client_gender:        row.get('client_gender'),
-      dog_gender:           row.get('dog_gender'),
-      dog_name:             row.get('dog_name'),
-      dog_age:              row.get('dog_age'),
-      dog_breed:            row.get('dog_breed'),
-      dog_weight:           row.get('dog_weight'),
+      phone_number: row.get('phone_number'),
+      client_email: row.get('client_email'),
+      client_name: row.get('client_name'),
+      client_id: row.get('client_id'),
+      address: row.get('address'),
+      travel_date: row.get('travel_date'),
+      client_gender: row.get('client_gender'),
+      dog_gender: row.get('dog_gender'),
+      dog_name: row.get('dog_name'),
+      dog_age: row.get('dog_age'),
+      dog_breed: row.get('dog_breed'),
+      dog_weight: row.get('dog_weight'),
       certificate_validity: row.get('certificate_validity'),
-      expedition:           row.get('expedition') || '',
-      microchip_number:     row.get('microchip_number'),
+      expedition: row.get('expedition') || '',
+      microchip_number: row.get('microchip_number'),
     })));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -152,30 +152,30 @@ app.get('/api/clients', async (req, res) => {
 app.post('/api/validate', upload.single('file'), async (req, res) => {
   try {
     const { expectedData } = req.body;
-    const client   = JSON.parse(expectedData);
+    const client = JSON.parse(expectedData);
     const mimeType = req.file.mimetype;
     const filename = req.file.originalname || '';
-    const docType  = detectDocType(filename);
+    const docType = detectDocType(filename);
 
-    
+
     const expeditionDate = parseExpedition(client.expedition);
-    const validityYears  = parseYears(client.certificate_validity);
-    const expiryDate     = (expeditionDate && validityYears) ? addYears(expeditionDate, validityYears) : null;
+    const validityYears = parseYears(client.certificate_validity);
+    const expiryDate = (expeditionDate && validityYears) ? addYears(expeditionDate, validityYears) : null;
 
     // Debug log to verify date calculations
     console.log(`📅 Expedición raw: "${client.expedition}" → parsed: ${expeditionDate}`);
     console.log(`📅 Validez raw: "${client.certificate_validity}" → años: ${validityYears}`);
     console.log(`📅 Vencimiento calculado: ${expiryDate} → ${expiryDate ? fmtCarnet(expiryDate) : 'null'}`);
 
-    
+
     let dateSection = '';
 
     if (docType === 'VERI_MEDIC' && expeditionDate) {
-      const prev        = prevMonth(expeditionDate);
-      const prevShort   = MONTHS_SHORT[prev.getMonth()];
-      const currShort   = MONTHS_SHORT[expeditionDate.getMonth()];
-      const prevFull    = MONTHS_FULL[prev.getMonth()];
-      const currFull    = MONTHS_FULL[expeditionDate.getMonth()];
+      const prev = prevMonth(expeditionDate);
+      const prevShort = MONTHS_SHORT[prev.getMonth()];
+      const currShort = MONTHS_SHORT[expeditionDate.getMonth()];
+      const prevFull = MONTHS_FULL[prev.getMonth()];
+      const currFull = MONTHS_FULL[expeditionDate.getMonth()];
       dateSection = `
       ═══════════════════════════════════════════════
       VALIDACIÓN — DOCUMENTO TIPO VERI MEDIC
@@ -220,14 +220,14 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       El sistema Petfly calculó estas fechas con precisión matemática. Debes respetarlas al pie de la letra.
 
       DATE OF ISSUE (Fecha de Expedición) ESPERADA:
-        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth()+1}), Año: ${expeditionDate.getFullYear()}
+        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth() + 1}), Año: ${expeditionDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtCarnet(expeditionDate)}"
           • "${fmtSlash(expeditionDate)}"
           • "${fmtLong(expeditionDate)}"
 
       DUE DATE (Fecha de Vencimiento) ESPERADA  [expedición + ${validityYears} año(s) = ${client.certificate_validity}]:
-        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth()+1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
+        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth() + 1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtCarnet(expiryDate)}"
           • "${fmtSlash(expiryDate)}"
@@ -270,7 +270,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       El sistema Petfly calculó estas fechas con precisión matemática. Debes respetarlas al pie de la letra.
 
       CERTIFICACIÓN ESPERADA (Expedición):
-        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth()+1}), Año: ${expeditionDate.getFullYear()}
+        Día: ${expeditionDate.getDate()}, Mes: ${MONTHS_SHORT[expeditionDate.getMonth()]} (mes ${expeditionDate.getMonth() + 1}), Año: ${expeditionDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtDash(expeditionDate)}"
           • "${fmtCarnet(expeditionDate)}"
@@ -278,7 +278,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
           • "${fmtLong(expeditionDate)}"
 
       VENCIMIENTO ESPERADA  [expedición + ${validityYears} año(s) = ${client.certificate_validity}]:
-        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth()+1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
+        Día: ${expiryDate.getDate()}, Mes: ${MONTHS_SHORT[expiryDate.getMonth()]} (mes ${expiryDate.getMonth() + 1}), AÑO OBLIGATORIO: ${expiryDate.getFullYear()}
         Formatos equivalentes aceptados:
           • "${fmtDash(expiryDate)}"
           • "${fmtCarnet(expiryDate)}"
@@ -337,7 +337,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       ═══════════════════════════════════════════════`;
     }
 
-    if (docType === 'CERTIFICACION_ADI' && expeditionDate) {
+    if (docType === 'CERTIFICACION ADI' && expeditionDate) {
       dateSection = `
       ═══════════════════════════════════════════════
       VALIDACIÓN — DOCUMENTO TIPO CERTIFICACIÓN ADI
@@ -432,18 +432,18 @@ app.get('/api/test', async (req, res) => {
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await axios.post(url, { contents: [{ parts: [{ text: "Hi" }] }] });
     console.log("✅ Conexión con Gemini exitosa");
-    res.json({ 
-      message: "¡PETFLY ONLINE!", 
-      response: "Conectado", 
+    res.json({
+      message: "¡PETFLY ONLINE!",
+      response: "Conectado",
       model: "gemini-flash-latest",
       status: response.status
     });
   } catch (error) {
     const errorDetails = error.response?.data || error.message;
     console.error("❌ Error en la prueba de Gemini:", errorDetails);
-    res.status(500).json({ 
-      error: "Error de conexión.", 
-      details: errorDetails 
+    res.status(500).json({
+      error: "Error de conexión.",
+      details: errorDetails
     });
   }
 });
