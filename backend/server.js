@@ -83,8 +83,14 @@ function prevMonth(date) {
 function detectDocType(filename) {
   const lower = (filename || '').toLowerCase();
   if (/^veri\s*medic/.test(lower)) return 'VERI_MEDIC';
+  if (lower.startsWith('carnet adi')) return 'CARNET_ADI';
   if (lower.startsWith('carnet'))   return 'CARNET';
   if (lower.startsWith('revision')) return 'REVISION';
+  if (lower.startsWith('informe entrenamiento')) return 'INFORME_ENTRENAMIENTO';
+  if (lower.startsWith('certificacion adi')) return 'CERTIFICACION_ADI';
+  if (lower.startsWith('adi')) return 'ADI';
+  if (lower.startsWith('k9')) return 'K9';
+  if (lower.startsWith('medical history translate')) return 'MEDICAL_HISTORY_TRANSLATE';
   return 'GENERIC';
 }
 
@@ -172,8 +178,12 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       const currFull    = MONTHS_FULL[expeditionDate.getMonth()];
       dateSection = `
       ═══════════════════════════════════════════════
-      VALIDACIÓN DE FECHAS — DOCUMENTO TIPO VERI MEDIC
+      VALIDACIÓN — DOCUMENTO TIPO VERI MEDIC
       ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar estrictamente que el nombre y documento de identidad del paciente/dueño coincidan con el sistema.
+      - REDACCIÓN Y ORTOGRAFÍA: Revisar exhaustivamente todo el texto buscando errores gramaticales, ortográficos o de redacción (sea en inglés o español).
+      
+      VALIDACIÓN DE FECHAS:
       La fecha de expedición registrada en el sistema es: "${client.expedition}" (${fmtCarnet(expeditionDate)})
 
       REGLA: La fecha que aparece en este certificado médico DEBE corresponder
@@ -183,15 +193,10 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
         • ${prevShort} ${prev.getFullYear()}  (${prevFull} ${prev.getFullYear()})
         • ${currShort} ${expeditionDate.getFullYear()}  (${currFull} ${expeditionDate.getFullYear()})
 
-      Si la fecha del documento corresponde a cualquier otro mes/año → DISCREPANCIA GRAVE, penaliza fuerte el score.
-      Reporta en "date_validation" la fecha exacta encontrada en el documento y si entra en el rango válido.
-      ═══════════════════════════════════════════════`;
-    }
-
     if (docType === 'CARNET' && expeditionDate && expiryDate) {
       dateSection = `
       ═══════════════════════════════════════════════
-      VALIDACIÓN — DOCUMENTO TIPO CARNET (MULTI-PÁGINA)
+      VALIDACIÓN — DOCUMENTO TIPO CARNET (MULTI-PÁGINA / BLACK WOLF)
       ═══════════════════════════════════════════════
 
       ⚠️ PÁGINAS: Este documento puede tener MÚLTIPLES PÁGINAS. Debes analizar y extraer
@@ -202,6 +207,12 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       gráficos decorativos del diseño del carnet, NO son fotos reales de la mascota del cliente.
       QUEDA PROHIBIDO evaluar, comentar o penalizar basándose en estas imágenes decorativas.
       Solo evalúa los CAMPOS DE TEXTO del documento.
+
+      VERIFICACIÓN DE DATOS DEL CARNET:
+      - Nombre del dueño: "${client.client_name}"
+      - Teléfono celular: "${client.phone_number}"
+      - Nombre del perro: "${client.dog_name}"
+      - Raza del perro: "${client.dog_breed}"
 
       VALIDACIÓN DE FECHAS — MUY IMPORTANTE:
       El sistema Petfly calculó estas fechas con precisión matemática. Debes respetarlas al pie de la letra.
@@ -231,6 +242,19 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Si DUE DATE no coincide exactamente (día, mes Y AÑO) con la fecha de vencimiento calculada → DISCREPANCIA GRAVE.
       Penaliza el score de forma severa en cualquiera de los dos casos.
       Reporta en "date_validation" las fechas encontradas en el documento vs las esperadas, indicando explícitamente si el año coincide.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'CARNET_ADI' && expeditionDate && expiryDate) {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO CARNET ADI
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar el nombre del dueño ("${client.client_name}") y su celular ("${client.phone_number}").
+      - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar el nombre del perro ("${client.dog_name}") y su microchip ("${client.microchip_number}").
+      - VALIDACIÓN DE FECHAS:
+        • FECHA DE EXPEDICIÓN: Debe coincidir exactamente con: "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).
+        • FECHA DE VENCIMIENTO (DUE DATE): Debe coincidir exactamente con: "${fmtCarnet(expiryDate)}" (o formatos equivalentes).
       ═══════════════════════════════════════════════`;
     }
 
@@ -272,6 +296,69 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Reporta en "date_validation" las fechas encontradas en el doc vs las esperadas, indicando explícitamente si existe este error.
       ═══════════════════════════════════════════════`;
     }
+
+    if (docType === 'INFORME_ENTRENAMIENTO') {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO INFORME ENTRENAMIENTO
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar que el nombre y documento de identidad del dueño coincidan con el sistema.
+      - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar que el nombre, raza, microchip, edad, etc. coincidan con el sistema.
+      - CONSISTENCIA DEL NOMBRE DEL PERRO: A lo largo del cuerpo del documento se menciona el nombre del perro; verificar que sea siempre el mismo y coincida.
+      - FECHAS: Verificar que NO haya errores de fechas en el documento.
+      - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'ADI') {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO ADI
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar que el nombre y documento de identidad del dueño coincidan con el sistema.
+      - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar que los datos generales del perro (nombre y raza) coincidan con el sistema.
+      - FECHA DE EXPEDICIÓN: Verificar que la fecha de expedición en el documento sea correcta. Fecha esperada: "${expeditionDate ? fmtCarnet(expeditionDate) : 'No especificada'}" (o formatos equivalentes).
+      - NOMBRE DEL PERRO EN CUERPO: En el cuerpo del documento, verificar que el nombre del perro coincida.
+      - PAÍS DEL DUEÑO: Verificar que el país (Country) especificado en el documento corresponda correctamente al país del indicativo/prefijo del teléfono registrado en el sistema. (Ejemplo: si el teléfono empieza por +34, el país debe ser España; si empieza por +57, Colombia). El teléfono registrado en el sistema es: "${client.phone_number}".
+      - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'K9') {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO K9
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar que el nombre y documento de identidad del dueño coincidan con el sistema.
+      - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar que los datos generales del perro (nombre y raza) coincidan con el sistema.
+      - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'CERTIFICACION_ADI' && expeditionDate) {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO CERTIFICACIÓN ADI
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar que el nombre del dueño ("${client.client_name}") coincida con el sistema.
+      - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar el nombre ("${client.dog_name}"), la raza ("${client.dog_breed}") y el sexo del perro. Nota: Recuerda la regla del sexo de la mascota (siempre se trata en masculino en el documento, no penalizar si una hembra se refiere en masculino).
+      - FECHA DE EXPEDICIÓN: Verificar que la fecha en el documento coincida con: "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).
+      - HORAS DE ENTRENAMIENTO: Debe certificar estrictamente que se completaron 160 horas de entrenamiento ("160 hours of training" o "160 horas de entrenamiento"). Si dice otra cantidad de horas, márcalo como discrepancia y reduce el score.
+      - REDACCIÓN Y ORTOGRAFÍA: Revisar detalladamente que no existan errores de redacción ni errores gramaticales. El documento se encuentra en inglés y español simultáneamente, evalúa ambos textos.
+      ═══════════════════════════════════════════════`;
+    }
+
+    if (docType === 'MEDICAL_HISTORY_TRANSLATE' && expeditionDate) {
+      dateSection = `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN — DOCUMENTO TIPO MEDICAL HISTORY TRANSLATE
+      ═══════════════════════════════════════════════
+      - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar el nombre ("${client.client_name}") y la identificación ("${client.client_id}").
+      - FECHA: Verificar que la fecha coincida con la registrada en el sistema: "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).
+      - REDACCIÓN Y ORTOGRAFÍA: Revisar exhaustivamente todo el documento en inglés para detectar errores de redacción, gramaticales y de ortografía.
+      ═══════════════════════════════════════════════`;
+    }
+
 
     const prompt = `
       Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'.
