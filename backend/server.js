@@ -192,6 +192,8 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Meses VÁLIDOS:
         • ${prevShort} ${prev.getFullYear()}  (${prevFull} ${prev.getFullYear()})
         • ${currShort} ${expeditionDate.getFullYear()}  (${currFull} ${expeditionDate.getFullYear()})
+      ═══════════════════════════════════════════════`;
+    }
 
     if (docType === 'CARNET' && expeditionDate && expiryDate) {
       dateSection = `
