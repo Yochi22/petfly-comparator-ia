@@ -263,6 +263,11 @@ export default function App() {
                         {res.final_verdict}
                       </p>
                     )}
+                    {res.error && (
+                      <p role="alert" style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: 'var(--error)', fontWeight: 600 }}>
+                        Error: {res.error}
+                      </p>
+                    )}
                   </div>
 
                   <AnimatePresence>
