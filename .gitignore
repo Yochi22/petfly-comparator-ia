@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.*
 **/.env
+!backend/.env.example
+
+# Documentos reales usados únicamente para pruebas locales
+test-documents/
+backend/local-test*.log

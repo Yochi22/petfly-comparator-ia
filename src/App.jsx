@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { 
   Search, 
@@ -17,7 +17,7 @@ import {
   Phone,
   Info
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -33,6 +33,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const [batchProgress, setBatchProgress] = useState({ completed: 0, total: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const clientsPerPage = 10;
 
@@ -40,10 +41,10 @@ export default function App() {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/clients`);
+      const res = await fetch(`${API_URL}/api/clients?refresh=true`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setClients(data);
@@ -52,18 +53,18 @@ export default function App() {
         setError(data.error || "Error desconocido del servidor");
         setClients([]);
       }
-    } catch (err) {
+    } catch {
       setError("No se pudo conectar con el servidor.");
       setClients([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_URL]);
 
   useEffect(() => {
     document.title = "Comparador Petfly";
     fetchClients();
-  }, []);
+  }, [fetchClients]);
 
   const downloadReport = () => {
     const doc = new jsPDF();
@@ -91,26 +92,20 @@ export default function App() {
   };
 
   const onDrop = async (acceptedFiles) => {
+    if (!selectedClient) {
+      setError('Selecciona un cliente antes de cargar el lote de documentos.');
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
-    const newResults = [];
+    setBatchProgress({ completed: 0, total: acceptedFiles.length });
 
-    for (const file of acceptedFiles) {
-      let clientToValidate = selectedClient;
-      if (!clientToValidate) {
-        clientToValidate = clients.find(c => 
-          file.name.toLowerCase().includes(c.client_name.toLowerCase().split(' ')[0])
-        );
-      }
-
-      if (!clientToValidate) {
-        newResults.push({ fileName: file.name, error: "No se encontró cliente." });
-        continue;
-      }
+    const auditFile = async (file) => {
 
       const formData = new FormData();
       formData.append('file', file); 
-      formData.append('expectedData', JSON.stringify(clientToValidate));
+      formData.append('clientKey', selectedClient.client_key);
 
       try {
         const res = await fetch(`${API_URL}/api/validate`, {
@@ -118,11 +113,29 @@ export default function App() {
           body: formData,
         });
         const result = await res.json();
-        newResults.push({ ...result, fileName: file.name, clientName: clientToValidate.client_name });
+        if (!res.ok) throw new Error(result.error || `Error HTTP ${res.status}`);
+        return { ...result, fileName: file.name, clientName: selectedClient.client_name };
       } catch (err) {
-        newResults.push({ fileName: file.name, error: "Error en el servidor de IA." });
+        return {
+          fileName: file.name,
+          clientName: selectedClient.client_name,
+          error: err.message || 'Error en el servidor de IA.',
+        };
+      } finally {
+        setBatchProgress(previous => ({ ...previous, completed: previous.completed + 1 }));
       }
-    }
+    };
+
+    const queue = [...acceptedFiles];
+    const newResults = [];
+    const worker = async () => {
+      while (queue.length > 0) {
+        const file = queue.shift();
+        newResults.push(await auditFile(file));
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
 
     setResults(prev => [...newResults, ...prev]);
     setIsProcessing(false);
@@ -130,12 +143,20 @@ export default function App() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop, 
+    onDropRejected: rejectedFiles => {
+      const tooMany = rejectedFiles.some(item => item.errors.some(itemError => itemError.code === 'too-many-files'));
+      setError(tooMany
+        ? 'El lote admite hasta 10 documentos. Divide cualquier lote mayor.'
+        : 'Uno o más archivos no son PDF, PNG o JPG válidos.');
+    },
     accept: {
       'application/pdf': ['.pdf'],
       'image/png': ['.png'],
       'image/jpeg': ['.jpg', '.jpeg']
     },
-    multiple: true
+    multiple: true,
+    maxFiles: 10,
+    disabled: isProcessing,
   });
 
   const filteredClients = clients.filter(c => 
@@ -153,6 +174,11 @@ export default function App() {
       <main className="main-grid">
         
         <section>
+          {error && (
+            <div className="glass card" role="alert" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--error)', color: 'var(--error)' }}>
+              {error}
+            </div>
+          )}
           <div className="glass card" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-dim)' }}>¿Problemas con la IA?</p>
             <button 
@@ -164,7 +190,7 @@ export default function App() {
                   const result = await res.json();
                   if (result.error) alert("❌ Error en Gemini: " + result.error);
                   else alert("✅ " + result.message + ": " + result.response);
-                } catch(e) { alert("❌ Error: Servidor backend apagado."); }
+                } catch { alert("❌ Error: Servidor backend apagado."); }
               }}
             >
               Test Petfly
@@ -177,14 +203,14 @@ export default function App() {
               <UploadIcon size={32} color="var(--primary)" />
               <ImageIcon size={32} color="var(--accent)" />
             </div>
-            <h3>{isProcessing ? 'Procesando archivos...' : 'Sube PDFs o Fotos de carnets'}</h3>
-            <p className="text-dim">Soporte para English & Español. Arrastra varios archivos a la vez.</p>
+            <h3>{isProcessing ? `Procesando ${batchProgress.completed} de ${batchProgress.total}...` : 'Carga el lote de hasta 10 documentos'}</h3>
+            <p className="text-dim">Selecciona primero el cliente. Soporta PDF, PNG y JPG.</p>
           </div>
 
           {isProcessing && (
             <div className="glass card" style={{ textAlign: 'center', marginBottom: '1rem' }}>
               <RefreshCcw className="animate-spin" style={{ margin: 'auto' }} />
-              <p>Analizando documentos Petfly...</p>
+              <p>Analizando {batchProgress.completed} de {batchProgress.total} documentos Petfly...</p>
             </div>
           )}
 
@@ -205,7 +231,7 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <AnimatePresence>
               {results.map((res, i) => (
-                <motion.div 
+                <Motion.div
                   key={i} 
                   initial={{ opacity: 0, x: -20 }} 
                   animate={{ opacity: 1, x: 0 }} 
@@ -241,7 +267,7 @@ export default function App() {
 
                   <AnimatePresence>
                     {expandedIndex === i && (
-                      <motion.div
+                      <Motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
@@ -286,12 +312,33 @@ export default function App() {
                             </div>
                           )}
 
+                          {res.findings?.length > 0 && (
+                            <div className="detail-box" style={{ gridColumn: 'span 2' }}>
+                              <h5 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                                Hallazgos estructurados
+                              </h5>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {res.findings.map((finding, findingIndex) => (
+                                  <div key={`${finding.code}-${findingIndex}`} style={{ fontSize: '0.78rem' }}>
+                                    <strong>{finding.status === 'MATCH' ? '✓' : finding.status === 'NOT_PRESENT' ? '—' : '⚠'} {finding.code}</strong>
+                                    {' · '}{finding.message || `${finding.found || 'No legible'} / esperado: ${finding.expected || 'N/A'}`}
+                                  </div>
+                                ))}
+                              </div>
+                              {res.scoring && (
+                                <p style={{ marginTop: '8px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                                  Política {res.scoring.policy_version} · Penalización: {res.scoring.penalties} puntos
+                                </p>
+                              )}
+                            </div>
+                          )}
+
 
                         </div>
-                      </motion.div>
+                      </Motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </Motion.div>
               ))}
             </AnimatePresence>
           </div>
