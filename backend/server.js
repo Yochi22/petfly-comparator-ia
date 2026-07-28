@@ -181,6 +181,8 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       Si DUE DATE no coincide exactamente (día, mes Y AÑO) con la fecha de vencimiento calculada → DISCREPANCIA GRAVE.
       Penaliza el score de forma severa en cualquiera de los dos casos.
       Reporta en "date_validation" las fechas encontradas en el documento vs las esperadas, indicando explícitamente si el año coincide.
+
+      ⚠️ ORTOGRAFÍA: Para este tipo de documento (CARNET BLACK WOLF) NO se debe evaluar ortografía ni gramática. Escribe "No aplica para este tipo de documento" en el campo "spelling_and_grammar_notes".
       ═══════════════════════════════════════════════`;
     }
 
@@ -194,6 +196,8 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - VALIDACIÓN DE FECHAS:
         • FECHA DE EXPEDICIÓN: Debe coincidir exactamente con: "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).
         • FECHA DE VENCIMIENTO (DUE DATE): Debe coincidir exactamente con: "${fmtCarnet(expiryDate)}" (o formatos equivalentes).
+
+      ⚠️ ORTOGRAFÍA: Para este tipo de documento (CARNET ADI) NO se debe evaluar ortografía ni gramática. Escribe "No aplica para este tipo de documento" en el campo "spelling_and_grammar_notes".
       ═══════════════════════════════════════════════`;
     }
 
