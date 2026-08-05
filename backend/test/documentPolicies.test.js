@@ -13,3 +13,8 @@ test('un tipo desconocido utiliza una política genérica segura', () => {
   assert.equal(policy.documentType, 'GENERIC');
   assert.deepEqual(policy.requiredChecks, []);
 });
+
+test('Informe Entrenamiento exige consistencia interna del diagnóstico', () => {
+  const policy = getDocumentPolicy('INFORME_ENTRENAMIENTO');
+  assert.ok(policy.requiredChecks.includes('DIAGNOSIS_INTERNAL_CONSISTENCY'));
+});

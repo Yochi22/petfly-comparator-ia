@@ -18,3 +18,8 @@ test('detecta variantes de Certificación ADI', () => {
 test('Carnet ADI tiene precedencia sobre Carnet y ADI', () => {
   assert.equal(detectDocType('Carnet ADI - Luna.pdf'), 'CARNET_ADI');
 });
+
+test('Training Assessment usa las reglas de Informe Entrenamiento', () => {
+  assert.equal(detectDocType('Training Assessment - Luna.pdf'), 'INFORME_ENTRENAMIENTO');
+  assert.equal(detectDocType('training_assessment_EN-US.pdf'), 'INFORME_ENTRENAMIENTO');
+});

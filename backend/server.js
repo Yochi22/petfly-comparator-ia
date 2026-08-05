@@ -243,11 +243,16 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     if (docType === 'INFORME_ENTRENAMIENTO') {
       dateSection = `
       ═══════════════════════════════════════════════
-      VALIDACIÓN — DOCUMENTO TIPO INFORME ENTRENAMIENTO
+      VALIDACIÓN — DOCUMENTO TIPO INFORME ENTRENAMIENTO / TRAINING ASSESSMENT
       ═══════════════════════════════════════════════
       - VERIFICACIÓN DE DATOS DEL DUEÑO: Comprobar que el nombre y documento de identidad del dueño coincidan con el sistema.
       - VERIFICACIÓN DE DATOS DEL PERRO: Comprobar que el nombre, raza, microchip, edad, etc. coincidan con el sistema.
       - CONSISTENCIA DEL NOMBRE DEL PERRO: A lo largo del cuerpo del documento se menciona el nombre del perro; verificar que sea siempre el mismo y coincida.
+      - COBERTURA TOTAL DEL DIAGNÓSTICO: Revisa TODAS las páginas y secciones. Extrae TODAS las menciones del diagnóstico, incluida cada repetición, e indica página o sección en extracted_evidence. No evalúes únicamente la primera aparición.
+      - QUÉ CUENTA COMO DIAGNÓSTICO: Busca también condiciones médicas, discapacidades o limitaciones declaradas fuera del campo principal, especialmente en propósito y alcance, antecedentes, resumen, objetivos del entrenamiento, tareas y conclusiones. No ignores una condición por aparecer dentro de una frase narrativa.
+      - DIFERENCIA ENTRE SÍNTOMA Y CONTRADICCIÓN: Síntomas compatibles con el diagnóstico no son diagnósticos nuevos. En cambio, una condición independiente o incompatible sí es contradicción. Ejemplo obligatorio: si Medical Condition indica PTSD/TEPT y GAD/TAG, pero Purpose and Scope dice que el perro asiste por unilateral hearing loss/pérdida auditiva unilateral, DIAGNOSIS_INTERNAL_CONSISTENCY debe ser MISMATCH CRITICAL.
+      - DIAGNOSIS_INTERNAL_CONSISTENCY (CRITICAL): Todas las menciones deben mantener un mismo perfil diagnóstico o funcional coherente a lo largo del documento. El perfil puede incluir varias condiciones relacionadas (por ejemplo, PTSD/TEPT + GAD/TAG) y una referencia abreviada puede mencionar solo una de ellas si no introduce contradicciones. Acepta traducciones fieles y diferencias de mayúsculas, espacios o puntuación. Una condición independiente, incompatible o que sustituya el contexto declarado es MISMATCH; enumera en found las condiciones conflictivas y sus ubicaciones.
+      - Devuelve SIEMPRE el finding DIAGNOSIS_INTERNAL_CONSISTENCY, tanto si es MATCH como si es MISMATCH o UNREADABLE.
       - FECHAS: Verificar que NO haya errores de fechas en el documento.
       - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
       ═══════════════════════════════════════════════`;

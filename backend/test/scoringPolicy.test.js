@@ -62,3 +62,12 @@ test('reconoce códigos equivalentes sin crear penalizaciones duplicadas', () =>
   assert.equal(result.findings.some(finding => finding.code === 'GRAMMAR' && finding.status === 'UNREADABLE'), false);
   assert.equal(result.findings.some(finding => finding.code === 'OWNER_IDENTITY' && finding.status === 'UNREADABLE'), false);
 });
+test('el control interno de diagnóstico omitido se agrega como crítico', () => {
+  const result = applyScoringPolicy(baseResult(), {
+    documentPolicy: getDocumentPolicy('INFORME_ENTRENAMIENTO'),
+  });
+  const internal = result.findings.find(finding => finding.code === 'DIAGNOSIS_INTERNAL_CONSISTENCY');
+  assert.equal(internal?.severity, 'CRITICAL');
+  assert.equal(internal?.status, 'UNREADABLE');
+  assert.equal(result.is_valid, false);
+});

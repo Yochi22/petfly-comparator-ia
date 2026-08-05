@@ -28,6 +28,7 @@ function detectDocType(filename) {
   if (name.startsWith('carnet')) return DOCUMENT_TYPES.CARNET;
   if (name.startsWith('revision')) return DOCUMENT_TYPES.REVISION;
   if (name.startsWith('informe entrenamiento')) return DOCUMENT_TYPES.INFORME_ENTRENAMIENTO;
+  if (name.startsWith('training assessment')) return DOCUMENT_TYPES.INFORME_ENTRENAMIENTO;
   if (/^(certificacion|certificado|certificate)\s+(de\s+)?adi\b/.test(name)) return DOCUMENT_TYPES.CERTIFICACION_ADI;
   if (name.startsWith('adi')) return DOCUMENT_TYPES.ADI;
   if (name.startsWith('k9')) return DOCUMENT_TYPES.K9;
