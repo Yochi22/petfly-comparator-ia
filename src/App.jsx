@@ -154,14 +154,14 @@ export default function App() {
     }
 
     const applyCorrelation = result => {
-      if (!correlation || !['ADI', 'CERTIFICACION_ADI'].includes(result.document_type)) return result;
+      if (!correlation || !['ADI', 'CERTIFICACION_ADI', 'REVISION'].includes(result.document_type)) return result;
       const status = correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status;
       const finding = {
         code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT',
         category: 'CERTIFICATE',
         severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL',
         status,
-        expected: 'Mismo número en ADI, Certificación ADI y página del QR',
+        expected: 'Un único número en ADI, Certificación ADI, REVISION y página del QR',
         found: JSON.stringify(correlation.values),
         message: correlation.message,
       };

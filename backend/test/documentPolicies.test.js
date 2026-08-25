@@ -29,3 +29,9 @@ test('ADI y Certificación ADI conservan sus reglas y exigen número de certific
   assert.ok(certification.requiredChecks.includes('TRAINING_160_HOURS'));
   assert.ok(certification.requiredChecks.includes('CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY'));
 });
+test('REVISION conserva fechas y exige consistencia del código de registro', () => {
+  const revision = getDocumentPolicy('REVISION');
+  assert.ok(revision.requiredChecks.includes('CERTIFICATION_DATE'));
+  assert.ok(revision.requiredChecks.includes('EXPIRY_DATE'));
+  assert.ok(revision.requiredChecks.includes('CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY'));
+});

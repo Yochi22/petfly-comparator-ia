@@ -46,11 +46,11 @@ Consultar [backend/.env.example](backend/.env.example). Los valores principales 
 - `AUDIT_QUEUE_TIMEOUT_MS`: espera máxima de una auditoría en cola.
 - `GEMINI_TIMEOUT_MS`: timeout por petición a Gemini.
 - `CLIENT_CACHE_TTL_MS`: duración del caché de Google Sheets para evitar una lectura por documento.
-- AUDIT_CORRELATION_TTL_MS: tiempo durante el que ADI y Certificación ADI pueden cargarse por separado y seguir vinculados; 24 horas por defecto.
+- AUDIT_CORRELATION_TTL_MS: tiempo durante el que ADI, Certificación ADI y REVISION pueden cargarse por separado y seguir vinculados; 24 horas por defecto.
 - `CORS_ORIGINS`: orígenes autorizados, separados por comas. Debe configurarse en producción.
 
 No existe un límite funcional de páginas impuesto por esta aplicación. El proveedor de IA conserva sus propios límites técnicos.
-Los documentos grandes se cargan temporalmente mediante Gemini Files API y se eliminan al terminar la auditoría. ADI y Certificación ADI se correlacionan por `auditId`; solo se conservan temporalmente sus números y evidencias, nunca el PDF completo. El número debe coincidir también con la página pública HTTPS del QR. La correlación dura 24 horas dentro del proceso activo del backend; después de un reinicio o despliegue se deben volver a cargar ambos documentos.
+Los documentos grandes se cargan temporalmente mediante Gemini Files API y se eliminan al terminar la auditoría. ADI, Certificación ADI y REVISION se correlacionan por `auditId`; solo se conservan temporalmente sus números y evidencias, nunca el PDF completo. El número debe coincidir también con la página pública HTTPS del QR. La correlación dura 24 horas dentro del proceso activo del backend; después de un reinicio o despliegue se deben volver a cargar los tres documentos.
 Los PDF que exceden el máximo admitido se dividen temporalmente por páginas. Los resultados se fusionan antes de aplicar la política de puntuación y el documento original nunca se modifica.
 
 ## Verificación

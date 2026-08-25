@@ -8,6 +8,10 @@ test('normaliza score y campos opcionales de Gemini', () => {
       is_valid: true,
       score: 120,
       final_verdict: 'Correcto',
+      document_reference: {
+        certificate_number: 'AST-2026-8812',
+        certificate_occurrences: [{ label: 'Certificate Number', value: 'AST-2026-8812', location: 'página 1' }],
+      },
       analysis: {
         human_match: 'Coincide',
         dog_match: 'Coincide',
@@ -19,6 +23,7 @@ test('normaliza score y campos opcionales de Gemini', () => {
 
   assert.equal(result.score, 100);
   assert.deepEqual(result.analysis.extracted_evidence, []);
+  assert.equal(result.document_reference.certificate_occurrences[0].location, 'página 1');
 });
 
 test('rechaza respuestas vacías o ajenas al contrato', () => {

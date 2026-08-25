@@ -30,6 +30,18 @@ const RESPONSE_SCHEMA = Object.freeze({
       properties: {
         certificate_number: { type: 'STRING' },
         qr_url: { type: 'STRING' },
+        certificate_occurrences: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            required: ['label', 'value', 'location'],
+            properties: {
+              label: { type: 'STRING' },
+              value: { type: 'STRING' },
+              location: { type: 'STRING' },
+            },
+          },
+        },
       },
     },
     analysis: {
@@ -70,6 +82,13 @@ function normalizeAuditResult(data) {
     document_reference: {
       certificate_number: String(result.document_reference?.certificate_number || ''),
       qr_url: String(result.document_reference?.qr_url || ''),
+      certificate_occurrences: Array.isArray(result.document_reference?.certificate_occurrences)
+        ? result.document_reference.certificate_occurrences.map(item => ({
+          label: String(item?.label || ''),
+          value: String(item?.value || ''),
+          location: String(item?.location || ''),
+        })).filter(item => item.value)
+        : [],
     },
     analysis: {
       human_match: result.analysis.human_match || 'No evaluado.',
@@ -161,6 +180,7 @@ class GeminiClient {
       document_reference: {
         certificate_number: results.map(result => result.document_reference?.certificate_number).find(Boolean) || '',
         qr_url: results.map(result => result.document_reference?.qr_url).find(Boolean) || '',
+        certificate_occurrences: results.flatMap(result => result.document_reference?.certificate_occurrences || []),
       },
       findings,
       analysis: {

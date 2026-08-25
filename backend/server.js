@@ -23,7 +23,7 @@ const { GoogleSheetsClientRepository } = require('./infrastructure/clientReposit
 const { GeminiClient } = require('./infrastructure/geminiClient');
 const { applyScoringPolicy } = require('./domain/scoringPolicy');
 const { getDocumentPolicy } = require('./domain/documentPolicies');
-const { compareCertificateReferences } = require('./domain/certificateReference');
+const { compareCertificateReferences, buildInternalConsistencyFinding } = require('./domain/certificateReference');
 const { AuditCorrelationStore } = require('./infrastructure/auditCorrelationStore');
 const { verifyQrPage } = require('./infrastructure/qrPageVerifier');
 const { extractEmbeddedHttpsUrls } = require('./infrastructure/documentUrlExtractor');
@@ -254,6 +254,20 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       ═══════════════════════════════════════════════`;
     }
 
+    if (docType === 'REVISION') {
+      dateSection += `
+      ═══════════════════════════════════════════════
+      VALIDACIÓN DE CÓDIGO DE REGISTRO — REVISIÓN / CAPTURA DE LA PÁGINA QR
+      ═══════════════════════════════════════════════
+      - Busca el código o número de registro en TODAS las zonas visibles de la captura: encabezado, cuerpo, pie, sello, tarjeta, resultado de verificación y cualquier texto lateral.
+      - Reconoce Certificate Number, Registration Number, Certificate No/N°, Registration No/N°, Número de certificado y Número de registro.
+      - Lista CADA ocurrencia en extracted_evidence y en document_reference.certificate_occurrences con label, value y location. No omitas ni dedupliques repeticiones.
+      - Si todas las ocurrencias contienen el mismo valor, devuelve CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MATCH y document_reference.certificate_number.
+      - Si UNA SOLA ocurrencia difiere, devuelve CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MISMATCH CRITICAL e incluye todos los valores y ubicaciones.
+      - Si no puede leerse ningún código, devuelve UNREADABLE CRITICAL.
+      - Esta regla se agrega a las validaciones de fechas existentes; no las reemplaza.
+      ═══════════════════════════════════════════════`;
+    }
     if (docType === 'INFORME_ENTRENAMIENTO') {
       dateSection = `
       ═══════════════════════════════════════════════
@@ -285,12 +299,13 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - NÚMERO DE CERTIFICADO/REGISTRO — CONSISTENCIA INTERNA CRÍTICA:
         Paso 1 — BUSCA en TODAS las secciones, páginas y zonas del documento (encabezado, cuerpo, pie, membrete, sello, zona del QR, reverso) cualquier valor numérico o alfanumérico que aparezca bajo etiquetas como:
           Certificate Number, Registration Number, Nº de Certificado, Nº de Registro, Certificate No, Certificate N°, Registration No, Registration NO, Registration N°, Número de registro, Número de certificado.
-        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto.
+        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto. Además, agrega CADA ocurrencia a document_reference.certificate_occurrences con label, value y location; no dedupliques repeticiones.
         Paso 3 — Compara todos los valores entre sí (ignora diferencias de mayúsculas, espacios o guiones):
           • Si TODOS son idénticos → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MATCH. Devuelve ese número en document_reference.certificate_number.
           • Si alguno difiere del resto → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MISMATCH CRITICAL. Indica en "found" todos los valores distintos y sus ubicaciones.
           • Si no se encontró ningún número → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = UNREADABLE.
         NUNCA omitas este hallazgo.
+        Para esta consistencia interna incluye el número IMPRESO al lado del QR, pero NO el parámetro contenido dentro de la URL decodificada; la URL y su página se validan por separado mediante QR_CERTIFICATE_NUMBER.
       - QR: Lee el código QR y devuelve su URL exacta en document_reference.qr_url. Devuelve el número visible del documento en document_reference.certificate_number. El backend verificará la página; no inventes la URL ni afirmes que la visitaste.
       - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
       ═══════════════════════════════════════════════`;
@@ -321,7 +336,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - NÚMERO DE CERTIFICADO/REGISTRO — CONSISTENCIA INTERNA CRÍTICA:
         Paso 1 — BUSCA en TODAS las secciones, páginas y zonas del documento (encabezado, cuerpo, pie, membrete, sello, reverso) cualquier valor numérico o alfanumérico que aparezca bajo etiquetas como:
           Certificate Number, Registration Number, Nº de Certificado, Nº de Registro, Certificate No, Certificate N°, Registration No, Registration NO, Registration N°, Número de registro, Número de certificado.
-        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto.
+        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto. Además, agrega CADA ocurrencia a document_reference.certificate_occurrences con label, value y location; no dedupliques repeticiones.
         Paso 3 — Compara todos los valores entre sí (ignora diferencias de mayúsculas, espacios o guiones):
           • Si TODOS son idénticos → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MATCH. Devuelve ese número en document_reference.certificate_number.
           • Si alguno difiere del resto → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MISMATCH CRITICAL. Indica en "found" todos los valores distintos y sus ubicaciones.
@@ -428,19 +443,21 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     });
 
     let correlation = null;
-    if (['ADI', 'CERTIFICACION_ADI'].includes(docType)) {
-      const certificateNumber = aiResult.document_reference?.certificate_number || '';
-      if (!certificateNumber) {
-        aiResult.findings.push({
-          code: 'CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY',
-          category: 'CERTIFICATE',
-          severity: 'CRITICAL',
-          status: 'UNREADABLE',
-          expected: 'Número de certificado o registro legible y consistente',
-          found: '',
-          message: 'No se pudo extraer el número de certificado o registro del documento.',
-        });
-      }
+    if (['ADI', 'CERTIFICACION_ADI', 'REVISION'].includes(docType)) {
+      const internal = buildInternalConsistencyFinding(
+        aiResult.document_reference?.certificate_occurrences,
+        aiResult.document_reference?.certificate_number,
+      );
+      aiResult.findings = aiResult.findings
+        .filter(finding => finding.code !== 'CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY');
+      aiResult.findings.push(internal.finding);
+      const certificateNumber = internal.occurrences[0]?.value || '';
+      aiResult.document_reference = {
+        ...aiResult.document_reference,
+        certificate_number: certificateNumber,
+        certificate_occurrences: internal.occurrences,
+      };
+
       let qrVerification = null;
       if (docType === 'ADI') {
         try {
@@ -449,6 +466,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
         } catch (qrError) {
           qrVerification = { status: 'UNREADABLE', number: '', url: '', message: qrError.message };
         }
+        aiResult.findings = aiResult.findings.filter(finding => finding.code !== 'QR_CERTIFICATE_NUMBER');
         aiResult.findings.push({
           code: 'QR_CERTIFICATE_NUMBER',
           category: 'CERTIFICATE',
@@ -462,12 +480,14 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
 
       const entry = auditCorrelationStore.put(auditId, client.client_key, docType, {
         certificateNumber,
+        certificateOccurrences: internal.occurrences,
         qrVerification,
         filename,
       });
       correlation = compareCertificateReferences({
-        adiNumber: entry.documents.ADI?.certificateNumber,
-        certificationNumber: entry.documents.CERTIFICACION_ADI?.certificateNumber,
+        adiOccurrences: entry.documents.ADI?.certificateOccurrences,
+        certificationOccurrences: entry.documents.CERTIFICACION_ADI?.certificateOccurrences,
+        revisionOccurrences: entry.documents.REVISION?.certificateOccurrences,
         qrPageNumber: entry.documents.ADI?.qrVerification?.number,
         qrStatus: entry.documents.ADI?.qrVerification?.status,
       });
@@ -476,12 +496,11 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
         category: 'CERTIFICATE',
         severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL',
         status: correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status,
-        expected: 'Mismo número en ADI, Certificación ADI y página del QR',
+        expected: 'Un único número en ADI, Certificación ADI, REVISION y página del QR',
         found: JSON.stringify(correlation.values),
         message: correlation.message,
       });
     }
-
     const result = applyScoringPolicy(aiResult, { documentPolicy });
     result.document_type = docType;
     result.audit_id = auditId;
@@ -504,8 +523,9 @@ app.get('/api/audits/:auditId/certificate-correlation', (req, res) => {
   const entry = auditCorrelationStore.get(req.params.auditId, clientKey);
   if (!entry) return res.status(404).json({ error: 'No existe una correlación activa para esta auditoría y cliente.' });
   return res.json(compareCertificateReferences({
-    adiNumber: entry.documents.ADI?.certificateNumber,
-    certificationNumber: entry.documents.CERTIFICACION_ADI?.certificateNumber,
+    adiOccurrences: entry.documents.ADI?.certificateOccurrences,
+    certificationOccurrences: entry.documents.CERTIFICACION_ADI?.certificateOccurrences,
+    revisionOccurrences: entry.documents.REVISION?.certificateOccurrences,
     qrPageNumber: entry.documents.ADI?.qrVerification?.number,
     qrStatus: entry.documents.ADI?.qrVerification?.status,
   }));
