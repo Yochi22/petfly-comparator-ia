@@ -16,26 +16,59 @@ function compareCertificateReferences({ adiNumber, certificationNumber, revision
     revision: normalizeCertificateNumber(revisionNumber),
     qrPage: normalizeCertificateNumber(qrPageNumber),
   };
-  const present = Object.entries(values).filter(([, v]) => v);
-  if (present.length < 2) {
-    const missing = Object.entries(values).filter(([, v]) => !v).map(([k]) => k);
-    return { status: 'PENDING', isMatch: null, values, message: `Validación cruzada pendiente: faltan documentos (${missing.join(', ')}).` };
+
+  const presentEntries = Object.entries(values).filter(([, v]) => v);
+  const presentValues = presentEntries.map(([, v]) => v);
+
+  if (presentEntries.length < 2) {
+    const missing = Object.keys(values).filter(k => !values[k]);
+    return {
+      status: 'PENDING',
+      isMatch: null,
+      values,
+      message: `Validación cruzada pendiente: se requiere al menos dos documentos/fuentes para comparar (faltan: ${missing.join(', ')}).`
+    };
   }
-  if (qrStatus !== 'MATCH' || !values.qrPage) {
-    const status = qrStatus === 'MISMATCH' ? 'MISMATCH' : 'UNREADABLE';
-    return { status, isMatch: false, values, message: status === 'MISMATCH'
-      ? 'El número publicado en la página del QR no coincide con ADI.'
-      : 'No fue posible confirmar el número publicado en la página del QR.' };
+
+  const allMatch = presentValues.every(v => v === presentValues[0]);
+
+  if (!allMatch) {
+    const diffs = [];
+    if (values.adi && values.certificationAdi && values.adi !== values.certificationAdi) {
+      diffs.push(`ADI (${adiNumber}) vs Certificación ADI (${certificationNumber})`);
+    }
+    if (values.adi && values.revision && values.adi !== values.revision) {
+      diffs.push(`ADI (${adiNumber}) vs Revisión (${revisionNumber})`);
+    }
+    if (values.certificationAdi && values.revision && values.certificationAdi !== values.revision) {
+      diffs.push(`Certificación ADI (${certificationNumber}) vs Revisión (${revisionNumber})`);
+    }
+    if (values.qrPage && values.adi && values.qrPage !== values.adi) {
+      diffs.push(`Página del QR (${qrPageNumber}) vs ADI (${adiNumber})`);
+    }
+    
+    return {
+      status: 'MISMATCH',
+      isMatch: false,
+      values,
+      message: `El número de certificado NO coincide: ${diffs.join(', ')}.`
+    };
   }
-  const nonEmptyValues = present.map(([, v]) => v);
-  const isMatch = nonEmptyValues.every(v => v === nonEmptyValues[0]);
+
+  if (qrStatus === 'MISMATCH') {
+    return {
+      status: 'MISMATCH',
+      isMatch: false,
+      values,
+      message: 'El número publicado en la página del QR no coincide con el número visible en ADI.'
+    };
+  }
+
   return {
-    status: isMatch ? 'MATCH' : 'MISMATCH',
-    isMatch,
+    status: 'MATCH',
+    isMatch: true,
     values,
-    message: isMatch
-      ? 'El número coincide en todos los documentos presentados (ADI, Certificación ADI, Revisión y página del QR).'
-      : 'El número NO coincide entre todos los documentos. Verifica ADI, Certificación ADI, Revisión y la página del QR.',
+    message: 'El número coincide en todos los documentos y fuentes comparadas hasta el momento.'
   };
 }
 
