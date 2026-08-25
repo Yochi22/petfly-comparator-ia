@@ -5,10 +5,30 @@ function collectUrls(text) {
   return String(text || '').match(/https:\/\/[^\s<>"')\]]+/gi) || [];
 }
 
+function decodeImageData(image) {
+  return jsQR(new Uint8ClampedArray(image.data), image.width, image.height, { inversionAttempts: 'attemptBoth' })?.data || '';
+}
+
 function decodeCanvas(canvas) {
   const context = canvas.getContext('2d');
-  const image = context.getImageData(0, 0, canvas.width, canvas.height);
-  return jsQR(new Uint8ClampedArray(image.data), image.width, image.height, { inversionAttempts: 'attemptBoth' })?.data || '';
+  const full = decodeImageData(context.getImageData(0, 0, canvas.width, canvas.height));
+  if (full) return full;
+
+  for (const divisions of [2, 3, 4]) {
+    const tileWidth = Math.min(canvas.width, Math.ceil((canvas.width / divisions) * 1.35));
+    const tileHeight = Math.min(canvas.height, Math.ceil((canvas.height / divisions) * 1.35));
+    const stepX = Math.max(1, Math.floor((canvas.width - tileWidth) / Math.max(1, divisions - 1)));
+    const stepY = Math.max(1, Math.floor((canvas.height - tileHeight) / Math.max(1, divisions - 1)));
+    for (let y = 0; y <= canvas.height - tileHeight; y += stepY) {
+      for (let x = 0; x <= canvas.width - tileWidth; x += stepX) {
+        const decoded = decodeImageData(context.getImageData(x, y, tileWidth, tileHeight));
+        if (decoded) return decoded;
+        if (x === canvas.width - tileWidth) break;
+      }
+      if (y === canvas.height - tileHeight) break;
+    }
+  }
+  return '';
 }
 
 async function decodeQrUrls(buffer, mimeType) {
@@ -21,7 +41,7 @@ async function decodeQrUrls(buffer, mimeType) {
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
         const page = await document.getPage(pageNumber);
         const base = page.getViewport({ scale: 1 });
-        const scale = Math.max(1.5, Math.min(3, 2400 / Math.max(base.width, base.height)));
+        const scale = Math.max(2, Math.min(5, 3600 / Math.max(base.width, base.height)));
         const viewport = page.getViewport({ scale });
         const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;

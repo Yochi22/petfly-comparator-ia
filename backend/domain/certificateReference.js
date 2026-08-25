@@ -9,14 +9,17 @@ function extractCertificateNumbers(text) {
   return [...new Set(matches.map(value => value.trim()))];
 }
 
-function compareCertificateReferences({ adiNumber, certificationNumber, qrPageNumber, qrStatus }) {
+function compareCertificateReferences({ adiNumber, certificationNumber, revisionNumber, qrPageNumber, qrStatus }) {
   const values = {
     adi: normalizeCertificateNumber(adiNumber),
     certificationAdi: normalizeCertificateNumber(certificationNumber),
+    revision: normalizeCertificateNumber(revisionNumber),
     qrPage: normalizeCertificateNumber(qrPageNumber),
   };
-  if (!values.adi || !values.certificationAdi) {
-    return { status: 'PENDING', isMatch: null, values, message: `Validación cruzada pendiente: falta ${!values.adi ? 'ADI' : 'Certificación ADI'}.` };
+  const present = Object.entries(values).filter(([, v]) => v);
+  if (present.length < 2) {
+    const missing = Object.entries(values).filter(([, v]) => !v).map(([k]) => k);
+    return { status: 'PENDING', isMatch: null, values, message: `Validación cruzada pendiente: faltan documentos (${missing.join(', ')}).` };
   }
   if (qrStatus !== 'MATCH' || !values.qrPage) {
     const status = qrStatus === 'MISMATCH' ? 'MISMATCH' : 'UNREADABLE';
@@ -24,14 +27,15 @@ function compareCertificateReferences({ adiNumber, certificationNumber, qrPageNu
       ? 'El número publicado en la página del QR no coincide con ADI.'
       : 'No fue posible confirmar el número publicado en la página del QR.' };
   }
-  const isMatch = Object.values(values).every(value => value === values.adi);
+  const nonEmptyValues = present.map(([, v]) => v);
+  const isMatch = nonEmptyValues.every(v => v === nonEmptyValues[0]);
   return {
     status: isMatch ? 'MATCH' : 'MISMATCH',
     isMatch,
     values,
     message: isMatch
-      ? 'El número coincide en ADI, Certificación ADI y la página del QR.'
-      : 'El número no coincide entre ADI, Certificación ADI y la página del QR.',
+      ? 'El número coincide en todos los documentos presentados (ADI, Certificación ADI, Revisión y página del QR).'
+      : 'El número NO coincide entre todos los documentos. Verifica ADI, Certificación ADI, Revisión y la página del QR.',
   };
 }
 

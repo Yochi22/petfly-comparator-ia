@@ -18,7 +18,7 @@ class AuditCorrelationStore {
   put(auditId, clientKey, documentType, reference) {
     this.cleanup();
     const id = AuditCorrelationStore.validateAuditId(auditId);
-    if (!id || !['ADI', 'CERTIFICACION_ADI'].includes(documentType)) return null;
+    if (!id || !['ADI', 'CERTIFICACION_ADI', 'REVISION'].includes(documentType)) return null;
     const previous = this.entries.get(id);
     if (previous && previous.clientKey !== clientKey) {
       const error = new Error('El identificador de auditoría pertenece a otro cliente.');

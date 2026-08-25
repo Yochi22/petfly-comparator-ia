@@ -282,7 +282,15 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - FECHA DE EXPEDICIÓN: Verificar que la fecha de expedición en el documento sea correcta. Fecha esperada: "${expeditionDate ? fmtCarnet(expeditionDate) : 'No especificada'}" (o formatos equivalentes).
       - NOMBRE DEL PERRO EN CUERPO: En el cuerpo del documento, verificar que el nombre del perro coincida.
       - PAÍS DEL DUEÑO: Verificar que el país (Country) especificado en el documento corresponda correctamente al país del indicativo/prefijo del teléfono registrado en el sistema. (Ejemplo: si el teléfono empieza por +34, el país debe ser España; si empieza por +57, Colombia). El teléfono registrado en el sistema es: "${client.phone_number}".
-      - NÚMERO DE CERTIFICADO/REGISTRO: Localiza TODAS las apariciones bajo etiquetas como Número de registro, Número de certificado, Certificate Number, Registration Number, Certificate No o Certificate N°. Deben ser idénticas en todo el documento. Devuelve siempre CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY.
+      - NÚMERO DE CERTIFICADO/REGISTRO — CONSISTENCIA INTERNA CRÍTICA:
+        Paso 1 — BUSCA en TODAS las secciones, páginas y zonas del documento (encabezado, cuerpo, pie, membrete, sello, zona del QR, reverso) cualquier valor numérico o alfanumérico que aparezca bajo etiquetas como:
+          Certificate Number, Registration Number, Nº de Certificado, Nº de Registro, Certificate No, Certificate N°, Registration No, Registration NO, Registration N°, Número de registro, Número de certificado.
+        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto.
+        Paso 3 — Compara todos los valores entre sí (ignora diferencias de mayúsculas, espacios o guiones):
+          • Si TODOS son idénticos → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MATCH. Devuelve ese número en document_reference.certificate_number.
+          • Si alguno difiere del resto → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MISMATCH CRITICAL. Indica en "found" todos los valores distintos y sus ubicaciones.
+          • Si no se encontró ningún número → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = UNREADABLE.
+        NUNCA omitas este hallazgo.
       - QR: Lee el código QR y devuelve su URL exacta en document_reference.qr_url. Devuelve el número visible del documento en document_reference.certificate_number. El backend verificará la página; no inventes la URL ni afirmes que la visitaste.
       - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
       ═══════════════════════════════════════════════`;
@@ -310,7 +318,15 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - NO CONCLUIR "SIN SIMILITUDES" SIN EVIDENCIA: Si un campo no es legible, indica exactamente cuál no se pudo leer. No asumas que no coincide.
       - FECHA DE EXPEDICIÓN: ${expeditionDate ? `Verificar que coincida con "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).` : 'La fecha esperada no está disponible en el sistema; extráela y repórtala, pero no penalices su ausencia en los datos esperados.'}
       - HORAS DE ENTRENAMIENTO: Debe certificar estrictamente que se completaron 160 horas de entrenamiento ("160 hours of training" o "160 horas de entrenamiento"). Si dice otra cantidad de horas, márcalo como discrepancia y reduce el score.
-      - NÚMERO DE CERTIFICADO/REGISTRO: Localiza TODAS las apariciones bajo etiquetas como Número de registro, Número de certificado, Certificate Number o Registration Number. Deben ser idénticas en todo el documento. Devuelve siempre CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY y el valor en document_reference.certificate_number.
+      - NÚMERO DE CERTIFICADO/REGISTRO — CONSISTENCIA INTERNA CRÍTICA:
+        Paso 1 — BUSCA en TODAS las secciones, páginas y zonas del documento (encabezado, cuerpo, pie, membrete, sello, reverso) cualquier valor numérico o alfanumérico que aparezca bajo etiquetas como:
+          Certificate Number, Registration Number, Nº de Certificado, Nº de Registro, Certificate No, Certificate N°, Registration No, Registration NO, Registration N°, Número de registro, Número de certificado.
+        Paso 2 — Lista en "extracted_evidence" CADA ocurrencia encontrada, indicando su ubicación y valor exacto.
+        Paso 3 — Compara todos los valores entre sí (ignora diferencias de mayúsculas, espacios o guiones):
+          • Si TODOS son idénticos → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MATCH. Devuelve ese número en document_reference.certificate_number.
+          • Si alguno difiere del resto → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = MISMATCH CRITICAL. Indica en "found" todos los valores distintos y sus ubicaciones.
+          • Si no se encontró ningún número → CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY = UNREADABLE.
+        NUNCA omitas este hallazgo.
       - REDACCIÓN Y ORTOGRAFÍA: Revisar detalladamente que no existan errores de redacción ni errores gramaticales. El documento se encuentra en inglés y español simultáneamente, evalúa ambos textos.
       ═══════════════════════════════════════════════`;
     }

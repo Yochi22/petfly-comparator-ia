@@ -39,9 +39,16 @@ async function verifyQrPage(rawUrl, expectedNumber, { timeoutMs = 10_000, maxRed
       url = await assertPublicHttpsUrl(new URL(response.headers.location, url).toString());
       continue;
     }
-    const text = String(response.data || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
-    const numbers = extractCertificateNumbers(text);
     const expected = normalizeCertificateNumber(expectedNumber);
+    const urlNumbers = extractCertificateNumbers([...url.searchParams.values()].join(' '));
+    if (urlNumbers.length) {
+      const urlMatch = urlNumbers.find(number => normalizeCertificateNumber(number) === expected);
+      return urlMatch
+        ? { status: 'MATCH', number: urlMatch, url: url.toString(), message: 'Número confirmado en la URL de la página de verificación del QR.' }
+        : { status: 'MISMATCH', number: urlNumbers[0], url: url.toString(), message: 'El número solicitado por la página del QR no coincide con el número visible en ADI.' };
+    }
+    const text = String(response.data || '').replace(/<[^>]+>/g, ' ');
+    const numbers = extractCertificateNumbers(text);
     const pageText = normalizeCertificateNumber(text);
     const matched = expected && pageText.includes(expected)
       ? (numbers.find(number => normalizeCertificateNumber(number) === expected) || expectedNumber)
