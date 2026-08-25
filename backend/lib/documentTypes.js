@@ -12,7 +12,11 @@ const DOCUMENT_TYPES = Object.freeze({
 });
 
 function normalizeFilename(filename) {
-  return (filename || '')
+  const original = String(filename || '');
+  const repaired = /[ÃÂ]/.test(original)
+    ? Buffer.from(original, 'latin1').toString('utf8')
+    : original;
+  return repaired
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

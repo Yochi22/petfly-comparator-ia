@@ -4,6 +4,7 @@ const { detectDocType } = require('../lib/documentTypes');
 
 test('detecta variantes de Certificación ADI', () => {
   const filenames = [
+    'Certificaci\u00c3\u00b3n ADI - Laura Romero_compressed.pdf',
     'Certificación ADI.pdf',
     'certificacion_adi CLIENTE.pdf',
     'CERTIFICADO DE ADI - Luna.pdf',

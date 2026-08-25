@@ -20,7 +20,7 @@ import {
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { reconcileAuditResults } from './certificateCorrelation';
+import { inferCertificateDocumentType, reconcileAuditResults } from './certificateCorrelation';
 
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -125,6 +125,7 @@ export default function App() {
         if (!res.ok) throw new Error(result.error || `Error HTTP ${res.status}`);
         return {
           ...result,
+          document_type: inferCertificateDocumentType(file.name, result.document_type),
           fileName: file.name,
           clientName: selectedClient.client_name,
           clientKey: selectedClient.client_key,

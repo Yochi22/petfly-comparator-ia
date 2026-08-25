@@ -1,5 +1,15 @@
 const TARGET_DOCUMENTS = ['ADI', 'CERTIFICACION_ADI', 'REVISION'];
 
+export function inferCertificateDocumentType(filename, backendType) {
+  if (TARGET_DOCUMENTS.includes(backendType)) return backendType;
+  const normalized = String(filename || '').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (normalized.startsWith('revision')) return 'REVISION';
+  if (/^(certificacion|certificado|certificate)\s+(de\s+)?adi\b/.test(normalized)) return 'CERTIFICACION_ADI';
+  if (normalized.startsWith('adi')) return 'ADI';
+  return backendType;
+}
+
 const normalize = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 const occurrenceValues = result => {

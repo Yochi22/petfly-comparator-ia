@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { correlateCertificateResults, reconcileAuditResults } from './certificateCorrelation.js';
+import { correlateCertificateResults, inferCertificateDocumentType, reconcileAuditResults } from './certificateCorrelation.js';
 
 const result = (document_type, values, extra = {}) => ({
   audit_id: 'audit-row-69-test', document_type, score: 100, is_valid: true,
@@ -10,6 +10,13 @@ const result = (document_type, values, extra = {}) => ({
     certificate_occurrences: values.map((value, index) => ({ label: 'Certificate Number', value, location: `página ${index + 1}` })),
   },
   ...extra,
+});
+
+test('clasifica Certificación ADI por el nombre visible si el backend respondió GENERIC', () => {
+  assert.equal(
+    inferCertificateDocumentType('Certificación ADI - Laura Romero_compressed.pdf', 'GENERIC'),
+    'CERTIFICACION_ADI',
+  );
 });
 
 test('no finaliza la correlación mientras falte uno de los tres documentos', () => {
