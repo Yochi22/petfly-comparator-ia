@@ -54,10 +54,10 @@ export function correlateCertificateResults(results) {
 
 function applyCorrelation(result, correlation) {
   if (!TARGET_DOCUMENTS.includes(result.document_type)) return result;
-  const status = correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status;
+  const status = correlation.status === 'PENDING' ? 'UNREADABLE' : correlation.status;
   const finding = {
     code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT', category: 'CERTIFICATE',
-    severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL', status,
+    severity: 'CRITICAL', status,
     expected: 'Un único número en ADI, Certificación ADI, REVISION y página del QR',
     found: JSON.stringify(correlation.values), message: correlation.message,
   };
@@ -68,7 +68,8 @@ function applyCorrelation(result, correlation) {
   const scoreBeforeCross = previousCrossFailure ? Math.min(100, (result.score ?? 0) + 35) : (result.score ?? 100);
   const score = isFailure ? Math.max(0, scoreBeforeCross - 35) : scoreBeforeCross;
   const hasOtherCriticalFailure = findings.some(item => item.code !== finding.code && item.severity === 'CRITICAL' && ['MISMATCH', 'UNREADABLE'].includes(item.status));
-  const finalVerdict = correlation.status === 'PENDING' ? result.final_verdict
+  const finalVerdict = correlation.status === 'PENDING'
+    ? `Auditoría cruzada incompleta. ${correlation.message} El documento no puede declararse válido hasta analizar los tres archivos.`
     : `${correlation.status === 'MATCH' ? 'Validación cruzada superada.' : 'Validación cruzada crítica fallida.'} ${correlation.message}`;
   return {
     ...result, is_valid: !isFailure && !hasOtherCriticalFailure && score >= 70, score,
@@ -79,11 +80,12 @@ function applyCorrelation(result, correlation) {
 }
 
 export function reconcileAuditResults(results) {
-  const auditIds = [...new Set(results.map(result => result.audit_id).filter(Boolean))];
+  const groupKey = result => result.clientKey || result.clientName || result.audit_id;
+  const auditIds = [...new Set(results.map(groupKey).filter(Boolean))];
   let reconciled = [...results];
   for (const auditId of auditIds) {
-    const correlation = correlateCertificateResults(reconciled.filter(result => result.audit_id === auditId));
-    reconciled = reconciled.map(result => result.audit_id === auditId ? applyCorrelation(result, correlation) : result);
+    const correlation = correlateCertificateResults(reconciled.filter(result => groupKey(result) === auditId));
+    reconciled = reconciled.map(result => groupKey(result) === auditId ? applyCorrelation(result, correlation) : result);
   }
   return reconciled;
 }

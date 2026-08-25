@@ -21,6 +21,29 @@ test('no finaliza la correlación mientras falte uno de los tres documentos', ()
   assert.deepEqual(correlation.missingDocuments, ['REVISION']);
 });
 
+test('un resultado pendiente no puede mostrarse válido ni con 100 puntos', () => {
+  const reconciled = reconcileAuditResults([
+    result('REVISION', ['AST-2026-2020'], { clientKey: 'row-69' }),
+  ]);
+  const crossFinding = reconciled[0].findings.find(finding => finding.code === 'CERTIFICATE_NUMBER_CROSS_DOCUMENT');
+  assert.equal(crossFinding.status, 'UNREADABLE');
+  assert.equal(crossFinding.severity, 'CRITICAL');
+  assert.equal(reconciled[0].is_valid, false);
+  assert.equal(reconciled[0].score, 65);
+  assert.match(reconciled[0].final_verdict, /incompleta/i);
+});
+
+test('correlaciona cargas separadas del mismo cliente aunque tengan auditId distintos', () => {
+  const documents = [
+    { ...result('ADI', ['AST-2026-8812']), audit_id: 'audit-one', clientKey: 'row-69' },
+    { ...result('CERTIFICACION_ADI', ['AST-2026-8812']), audit_id: 'audit-two', clientKey: 'row-69' },
+    { ...result('REVISION', ['AST-2026-2020']), audit_id: 'audit-three', clientKey: 'row-69' },
+  ];
+  const reconciled = reconcileAuditResults(documents);
+  assert.ok(reconciled.every(document => document.certificate_correlation.status === 'MISMATCH'));
+  assert.ok(reconciled.every(document => document.is_valid === false));
+});
+
 test('sobrescribe el estado pendiente de los tres resultados con el mismatch final', () => {
   const pendingFinding = {
     code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT', severity: 'INFO', status: 'NOT_PRESENT',

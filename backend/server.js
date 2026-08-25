@@ -494,8 +494,8 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       aiResult.findings.push({
         code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT',
         category: 'CERTIFICATE',
-        severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL',
-        status: correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status,
+        severity: 'CRITICAL',
+        status: correlation.status === 'PENDING' ? 'UNREADABLE' : correlation.status,
         expected: 'Un único número en ADI, Certificación ADI, REVISION y página del QR',
         found: JSON.stringify(correlation.values),
         message: correlation.message,

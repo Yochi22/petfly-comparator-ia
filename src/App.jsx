@@ -123,11 +123,17 @@ export default function App() {
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || `Error HTTP ${res.status}`);
-        return { ...result, fileName: file.name, clientName: selectedClient.client_name };
+        return {
+          ...result,
+          fileName: file.name,
+          clientName: selectedClient.client_name,
+          clientKey: selectedClient.client_key,
+        };
       } catch (err) {
         return {
           fileName: file.name,
           clientName: selectedClient.client_name,
+          clientKey: selectedClient.client_key,
           error: err.message || 'Error en el servidor de IA.',
         };
       } finally {
