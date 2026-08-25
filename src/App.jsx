@@ -20,6 +20,7 @@ import {
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { reconcileAuditResults } from './certificateCorrelation';
 
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -186,10 +187,10 @@ export default function App() {
       };
     };
 
-    setResults(prev => [
+    setResults(prev => reconcileAuditResults([
       ...newResults.map(applyCorrelation),
       ...prev.map(result => result.audit_id === auditId ? applyCorrelation(result) : result),
-    ]);
+    ]));
     setIsProcessing(false);
   };
 
