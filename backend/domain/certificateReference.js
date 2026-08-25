@@ -64,6 +64,15 @@ function compareCertificateReferences({ adiNumber, certificationNumber, revision
     };
   }
 
+  if (qrStatus === 'UNREADABLE') {
+    return {
+      status: 'UNREADABLE',
+      isMatch: false,
+      values,
+      message: 'No fue posible confirmar el número publicado en la página del QR.'
+    };
+  }
+
   return {
     status: 'MATCH',
     isMatch: true,
