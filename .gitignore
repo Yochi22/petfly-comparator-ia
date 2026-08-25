@@ -32,3 +32,6 @@ dist-ssr
 # Documentos reales usados únicamente para pruebas locales
 test-documents/
 backend/local-test*.log
+
+# Documentos de clientes para pruebas locales
+documentos-prueba/

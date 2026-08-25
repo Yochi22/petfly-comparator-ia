@@ -25,6 +25,13 @@ const RESPONSE_SCHEMA = Object.freeze({
         },
       },
     },
+    document_reference: {
+      type: 'OBJECT',
+      properties: {
+        certificate_number: { type: 'STRING' },
+        qr_url: { type: 'STRING' },
+      },
+    },
     analysis: {
       type: 'OBJECT',
       required: ['human_match', 'dog_match', 'date_validation', 'spelling_and_grammar_notes'],
@@ -60,6 +67,10 @@ function normalizeAuditResult(data) {
     is_valid: Boolean(result.is_valid),
     score: Math.max(0, Math.min(100, Number(result.score) || 0)),
     findings: Array.isArray(result.findings) ? result.findings : [],
+    document_reference: {
+      certificate_number: String(result.document_reference?.certificate_number || ''),
+      qr_url: String(result.document_reference?.qr_url || ''),
+    },
     analysis: {
       human_match: result.analysis.human_match || 'No evaluado.',
       dog_match: result.analysis.dog_match || 'No evaluado.',
@@ -147,6 +158,10 @@ class GeminiClient {
       is_valid: results.every(result => result.is_valid),
       score: Math.min(...results.map(result => result.score)),
       final_verdict: `Documento analizado completamente en ${chunkCount} fragmento(s). ${results.map(result => result.final_verdict).join(' ')}`,
+      document_reference: {
+        certificate_number: results.map(result => result.document_reference?.certificate_number).find(Boolean) || '',
+        qr_url: results.map(result => result.document_reference?.qr_url).find(Boolean) || '',
+      },
       findings,
       analysis: {
         human_match: results.map(result => result.analysis.human_match).join(' | '),

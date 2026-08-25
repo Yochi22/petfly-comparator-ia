@@ -22,6 +22,7 @@ module.exports = Object.freeze({
   geminiPdfChunkBytes: positiveInteger('GEMINI_PDF_CHUNK_MB', 40) * 1024 * 1024,
   maxConcurrentAudits: positiveInteger('MAX_CONCURRENT_AUDITS', 3),
   auditQueueTimeoutMs: positiveInteger('AUDIT_QUEUE_TIMEOUT_MS', 180_000),
+  auditCorrelationTtlMs: positiveInteger('AUDIT_CORRELATION_TTL_MS', 86_400_000),
   corsOrigins: (process.env.CORS_ORIGINS || '*')
     .split(',')
     .map(value => value.trim())

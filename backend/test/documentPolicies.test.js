@@ -18,3 +18,14 @@ test('Informe Entrenamiento exige consistencia interna del diagnóstico', () => 
   const policy = getDocumentPolicy('INFORME_ENTRENAMIENTO');
   assert.ok(policy.requiredChecks.includes('DIAGNOSIS_INTERNAL_CONSISTENCY'));
 });
+test('ADI y Certificación ADI conservan sus reglas y exigen número de certificado', () => {
+  const adi = getDocumentPolicy('ADI');
+  const certification = getDocumentPolicy('CERTIFICACION_ADI');
+  for (const previous of ['OWNER_IDENTITY', 'DOG_NAME', 'DOG_BREED', 'ISSUE_DATE', 'PHONE_COUNTRY', 'GRAMMAR']) {
+    assert.ok(adi.requiredChecks.includes(previous));
+  }
+  assert.ok(adi.requiredChecks.includes('CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY'));
+  assert.ok(adi.requiredChecks.includes('QR_CERTIFICATE_NUMBER'));
+  assert.ok(certification.requiredChecks.includes('TRAINING_160_HOURS'));
+  assert.ok(certification.requiredChecks.includes('CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY'));
+});

@@ -19,7 +19,9 @@ function mapClient(row) {
     expedition: row.get('expedition') || '',
     microchip_number: row.get('microchip_number'),
   };
-  client.client_key = String(client.client_id || client.phone_number || '').trim();
+  client.sheet_row = Number(row.rowNumber) || null;
+  const baseKey = String(client.client_id || client.phone_number || '').trim();
+  client.client_key = client.sheet_row ? baseKey + '::row-' + client.sheet_row : baseKey;
   return client;
 }
 
@@ -59,7 +61,16 @@ class GoogleSheetsClientRepository {
     const normalizedKey = String(clientKey || '').trim();
     if (!normalizedKey) return null;
     const clients = await this.list();
-    return clients.find(client => client.client_key === normalizedKey) || null;
+    const exact = clients.find(client => client.client_key === normalizedKey);
+    if (exact) return exact;
+    const legacyMatches = clients.filter(client => client.client_key.split('::row-')[0] === normalizedKey);
+    if (legacyMatches.length === 1) return legacyMatches[0];
+    if (legacyMatches.length > 1) {
+      const error = new Error('El cliente tiene filas duplicadas; actualiza la lista y vuelve a seleccionarlo.');
+      error.statusCode = 409;
+      throw error;
+    }
+    return null;
   }
 }
 

@@ -101,11 +101,19 @@ export default function App() {
     setError(null);
     setBatchProgress({ completed: 0, total: acceptedFiles.length });
 
+    const auditStorageKey = 'petfly-audit:' + selectedClient.client_key;
+    const savedAudit = JSON.parse(localStorage.getItem(auditStorageKey) || 'null');
+    const auditId = savedAudit?.expiresAt > Date.now()
+      ? savedAudit.id
+      : (globalThis.crypto?.randomUUID?.() || (Date.now() + '-' + Math.random().toString(36).slice(2)));
+    localStorage.setItem(auditStorageKey, JSON.stringify({ id: auditId, expiresAt: Date.now() + 24 * 60 * 60 * 1000 }));
+
     const auditFile = async (file) => {
 
       const formData = new FormData();
       formData.append('file', file); 
       formData.append('clientKey', selectedClient.client_key);
+      formData.append('auditId', auditId);
 
       try {
         const res = await fetch(`${API_URL}/api/validate`, {
@@ -137,7 +145,51 @@ export default function App() {
 
     await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
 
-    setResults(prev => [...newResults, ...prev]);
+    let correlation = null;
+    try {
+      const response = await fetch(`${API_URL}/api/audits/${auditId}/certificate-correlation?clientKey=${encodeURIComponent(selectedClient.client_key)}`);
+      if (response.ok) correlation = await response.json();
+    } catch {
+      // La auditoría individual sigue siendo válida aunque la reconciliación temporal no esté disponible.
+    }
+
+    const applyCorrelation = result => {
+      if (!correlation || !['ADI', 'CERTIFICACION_ADI'].includes(result.document_type)) return result;
+      const status = correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status;
+      const finding = {
+        code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT',
+        category: 'CERTIFICATE',
+        severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL',
+        status,
+        expected: 'Mismo número en ADI, Certificación ADI y página del QR',
+        found: JSON.stringify(correlation.values),
+        message: correlation.message,
+      };
+      const previousFindings = result.findings || [];
+      const previousCrossFailure = previousFindings.some(item => item.code === finding.code && ['MISMATCH', 'UNREADABLE'].includes(item.status));
+      const findings = [...previousFindings.filter(item => item.code !== finding.code), finding];
+      const isFailure = ['MISMATCH', 'UNREADABLE'].includes(status);
+      const scoreBeforeCross = previousCrossFailure ? Math.min(100, (result.score ?? 0) + 35) : (result.score ?? 100);
+      const score = isFailure ? Math.max(0, scoreBeforeCross - 35) : scoreBeforeCross;
+      const hasOtherCriticalFailure = findings.some(item => item.code !== finding.code
+        && item.severity === 'CRITICAL' && ['MISMATCH', 'UNREADABLE'].includes(item.status));
+      return {
+        ...result,
+        is_valid: !isFailure && !hasOtherCriticalFailure && score >= 70,
+        score,
+        findings,
+        scoring: result.scoring ? {
+          ...result.scoring,
+          penalties: Math.max(0, result.scoring.penalties + (isFailure ? 35 : 0) - (previousCrossFailure ? 35 : 0)),
+        } : result.scoring,
+        certificate_correlation: correlation,
+      };
+    };
+
+    setResults(prev => [
+      ...newResults.map(applyCorrelation),
+      ...prev.map(result => result.audit_id === auditId ? applyCorrelation(result) : result),
+    ]);
     setIsProcessing(false);
   };
 
@@ -232,7 +284,7 @@ export default function App() {
             <AnimatePresence>
               {results.map((res, i) => (
                 <Motion.div
-                  key={i} 
+                  key={`${res.audit_id || 'legacy'}-${res.fileName}-${i}`}
                   initial={{ opacity: 0, x: -20 }} 
                   animate={{ opacity: 1, x: 0 }} 
                   className="glass card"
@@ -384,11 +436,11 @@ export default function App() {
 
                 return (
                   <>
-                    {currentClients.map((c, i) => (
+                    {currentClients.map(c => (
                       <div 
-                        key={i} 
+                        key={c.client_key}
                         className="card" 
-                        style={{ marginBottom: '8px', border: selectedClient?.client_name === c.client_name ? '1px solid var(--primary)' : '1px solid transparent', cursor: 'pointer' }}
+                        style={{ marginBottom: '8px', border: selectedClient?.client_key === c.client_key ? '1px solid var(--primary)' : '1px solid transparent', cursor: 'pointer' }}
                         onClick={() => setSelectedClient(c)}
                       >
                         <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{c.client_name}</div>

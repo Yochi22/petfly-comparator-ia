@@ -23,6 +23,10 @@ const { GoogleSheetsClientRepository } = require('./infrastructure/clientReposit
 const { GeminiClient } = require('./infrastructure/geminiClient');
 const { applyScoringPolicy } = require('./domain/scoringPolicy');
 const { getDocumentPolicy } = require('./domain/documentPolicies');
+const { compareCertificateReferences } = require('./domain/certificateReference');
+const { AuditCorrelationStore } = require('./infrastructure/auditCorrelationStore');
+const { verifyQrPage } = require('./infrastructure/qrPageVerifier');
+const { extractEmbeddedHttpsUrls } = require('./infrastructure/documentUrlExtractor');
 
 const app = express();
 app.use(cors({
@@ -40,6 +44,7 @@ const upload = multer({
   limits: { files: 1, fileSize: config.maxFileBytes, fields: 5 },
 });
 const auditSemaphore = new AuditSemaphore(config.maxConcurrentAudits);
+const auditCorrelationStore = new AuditCorrelationStore({ ttlMs: config.auditCorrelationTtlMs });
 const PORT = config.port;
 
 const GEMINI_API_KEY = config.geminiApiKey;
@@ -78,6 +83,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
   try {
     const mimeType = validateUploadedFile(req.file);
     const { clientKey } = req.body;
+    const auditId = AuditCorrelationStore.validateAuditId(req.body.auditId) || auditCorrelationStore.createId();
     if (!clientKey) {
       const error = new Error('Debes seleccionar un cliente antes de auditar documentos.');
       error.statusCode = 400;
@@ -93,6 +99,14 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     const filename = req.file.originalname || '';
     const docType = detectDocType(filename);
     const documentPolicy = getDocumentPolicy(docType);
+    let embeddedUrls = [];
+    if (docType === 'ADI') {
+      try {
+        embeddedUrls = await extractEmbeddedHttpsUrls(req.file.buffer, mimeType);
+      } catch (urlError) {
+        console.warn('No se pudieron extraer enlaces del QR en ' + filename + ': ' + urlError.message);
+      }
+    }
 
 
     const expeditionDate = parseExpedition(client.expedition);
@@ -268,6 +282,8 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - FECHA DE EXPEDICIÓN: Verificar que la fecha de expedición en el documento sea correcta. Fecha esperada: "${expeditionDate ? fmtCarnet(expeditionDate) : 'No especificada'}" (o formatos equivalentes).
       - NOMBRE DEL PERRO EN CUERPO: En el cuerpo del documento, verificar que el nombre del perro coincida.
       - PAÍS DEL DUEÑO: Verificar que el país (Country) especificado en el documento corresponda correctamente al país del indicativo/prefijo del teléfono registrado en el sistema. (Ejemplo: si el teléfono empieza por +34, el país debe ser España; si empieza por +57, Colombia). El teléfono registrado en el sistema es: "${client.phone_number}".
+      - NÚMERO DE CERTIFICADO/REGISTRO: Localiza TODAS las apariciones bajo etiquetas como Número de registro, Número de certificado, Certificate Number, Registration Number, Certificate No o Certificate N°. Deben ser idénticas en todo el documento. Devuelve siempre CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY.
+      - QR: Lee el código QR y devuelve su URL exacta en document_reference.qr_url. Devuelve el número visible del documento en document_reference.certificate_number. El backend verificará la página; no inventes la URL ni afirmes que la visitaste.
       - REDACCIÓN: Revisar exhaustivamente que no existan errores de redacción ni errores gramaticales.
       ═══════════════════════════════════════════════`;
     }
@@ -294,6 +310,7 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       - NO CONCLUIR "SIN SIMILITUDES" SIN EVIDENCIA: Si un campo no es legible, indica exactamente cuál no se pudo leer. No asumas que no coincide.
       - FECHA DE EXPEDICIÓN: ${expeditionDate ? `Verificar que coincida con "${fmtCarnet(expeditionDate)}" (o formatos equivalentes).` : 'La fecha esperada no está disponible en el sistema; extráela y repórtala, pero no penalices su ausencia en los datos esperados.'}
       - HORAS DE ENTRENAMIENTO: Debe certificar estrictamente que se completaron 160 horas de entrenamiento ("160 hours of training" o "160 horas de entrenamiento"). Si dice otra cantidad de horas, márcalo como discrepancia y reduce el score.
+      - NÚMERO DE CERTIFICADO/REGISTRO: Localiza TODAS las apariciones bajo etiquetas como Número de registro, Número de certificado, Certificate Number o Registration Number. Deben ser idénticas en todo el documento. Devuelve siempre CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY y el valor en document_reference.certificate_number.
       - REDACCIÓN Y ORTOGRAFÍA: Revisar detalladamente que no existan errores de redacción ni errores gramaticales. El documento se encuentra en inglés y español simultáneamente, evalúa ambos textos.
       ═══════════════════════════════════════════════`;
     }
@@ -310,10 +327,14 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     }
 
 
+    const embeddedUrlEvidence = embeddedUrls.length ? JSON.stringify(embeddedUrls) : 'ninguna';
+
     const prompt = `
       Eres un auditor legal multilingüe experto (Inglés/Español) para 'Petfly'.
       Tu objetivo es auditar la veracidad de este DOCUMENTO o CARNET (PDF o Imagen).
       Nombre del archivo analizado: "${filename}" (Tipo detectado: ${docType})
+      URLs HTTPS embebidas detectadas técnicamente: ${embeddedUrlEvidence}
+      Para ADI, usa la URL que corresponda al QR; no selecciones enlaces decorativos o ajenos a la verificación.
 
       POLÍTICA DECLARATIVA OBLIGATORIA:
       ${JSON.stringify(documentPolicy)}
@@ -389,8 +410,66 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       mimeType,
       filename,
     });
+
+    let correlation = null;
+    if (['ADI', 'CERTIFICACION_ADI'].includes(docType)) {
+      const certificateNumber = aiResult.document_reference?.certificate_number || '';
+      if (!certificateNumber) {
+        aiResult.findings.push({
+          code: 'CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY',
+          category: 'CERTIFICATE',
+          severity: 'CRITICAL',
+          status: 'UNREADABLE',
+          expected: 'Número de certificado o registro legible y consistente',
+          found: '',
+          message: 'No se pudo extraer el número de certificado o registro del documento.',
+        });
+      }
+      let qrVerification = null;
+      if (docType === 'ADI') {
+        try {
+          const qrUrl = aiResult.document_reference?.qr_url || embeddedUrls[0] || '';
+          qrVerification = await verifyQrPage(qrUrl, certificateNumber);
+        } catch (qrError) {
+          qrVerification = { status: 'UNREADABLE', number: '', url: '', message: qrError.message };
+        }
+        aiResult.findings.push({
+          code: 'QR_CERTIFICATE_NUMBER',
+          category: 'CERTIFICATE',
+          severity: 'CRITICAL',
+          status: qrVerification.status,
+          expected: certificateNumber,
+          found: qrVerification.number,
+          message: qrVerification.message,
+        });
+      }
+
+      const entry = auditCorrelationStore.put(auditId, client.client_key, docType, {
+        certificateNumber,
+        qrVerification,
+        filename,
+      });
+      correlation = compareCertificateReferences({
+        adiNumber: entry.documents.ADI?.certificateNumber,
+        certificationNumber: entry.documents.CERTIFICACION_ADI?.certificateNumber,
+        qrPageNumber: entry.documents.ADI?.qrVerification?.number,
+        qrStatus: entry.documents.ADI?.qrVerification?.status,
+      });
+      aiResult.findings.push({
+        code: 'CERTIFICATE_NUMBER_CROSS_DOCUMENT',
+        category: 'CERTIFICATE',
+        severity: correlation.status === 'PENDING' ? 'INFO' : 'CRITICAL',
+        status: correlation.status === 'PENDING' ? 'NOT_PRESENT' : correlation.status,
+        expected: 'Mismo número en ADI, Certificación ADI y página del QR',
+        found: JSON.stringify(correlation.values),
+        message: correlation.message,
+      });
+    }
+
     const result = applyScoringPolicy(aiResult, { documentPolicy });
     result.document_type = docType;
+    result.audit_id = auditId;
+    if (correlation) result.certificate_correlation = correlation;
 
     res.json(result);
   } catch (error) {
@@ -404,6 +483,17 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
   }
 });
 
+app.get('/api/audits/:auditId/certificate-correlation', (req, res) => {
+  const { clientKey } = req.query;
+  const entry = auditCorrelationStore.get(req.params.auditId, clientKey);
+  if (!entry) return res.status(404).json({ error: 'No existe una correlación activa para esta auditoría y cliente.' });
+  return res.json(compareCertificateReferences({
+    adiNumber: entry.documents.ADI?.certificateNumber,
+    certificationNumber: entry.documents.CERTIFICACION_ADI?.certificateNumber,
+    qrPageNumber: entry.documents.ADI?.qrVerification?.number,
+    qrStatus: entry.documents.ADI?.qrVerification?.status,
+  }));
+});
 app.get('/api/test', async (req, res) => {
   try {
     console.log("🔍 Probando conexión con Gemini...");
