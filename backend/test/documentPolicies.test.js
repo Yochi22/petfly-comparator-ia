@@ -35,3 +35,12 @@ test('REVISION conserva fechas y exige consistencia del código de registro', ()
   assert.ok(revision.requiredChecks.includes('EXPIRY_DATE'));
   assert.ok(revision.requiredChecks.includes('CERTIFICATE_NUMBER_INTERNAL_CONSISTENCY'));
 });
+
+test('Medical History Translate conserva sus reglas y exige medidas humanas', () => {
+  const policy = getDocumentPolicy('MEDICAL_HISTORY_TRANSLATE');
+  for (const check of ['OWNER_NAME', 'OWNER_ID', 'DATE', 'ENGLISH_GRAMMAR']) {
+    assert.ok(policy.requiredChecks.includes(check));
+  }
+  assert.ok(policy.requiredChecks.includes('PATIENT_WEIGHT_CONSISTENCY'));
+  assert.ok(policy.requiredChecks.includes('PATIENT_HEIGHT_CONSISTENCY'));
+});

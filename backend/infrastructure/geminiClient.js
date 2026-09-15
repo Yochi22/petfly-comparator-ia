@@ -42,6 +42,30 @@ const RESPONSE_SCHEMA = Object.freeze({
             },
           },
         },
+        patient_weight_occurrences: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            required: ['label', 'value', 'location'],
+            properties: {
+              label: { type: 'STRING' },
+              value: { type: 'STRING' },
+              location: { type: 'STRING' },
+            },
+          },
+        },
+        patient_height_occurrences: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            required: ['label', 'value', 'location'],
+            properties: {
+              label: { type: 'STRING' },
+              value: { type: 'STRING' },
+              location: { type: 'STRING' },
+            },
+          },
+        },
       },
     },
     analysis: {
@@ -84,6 +108,20 @@ function normalizeAuditResult(data) {
       qr_url: String(result.document_reference?.qr_url || ''),
       certificate_occurrences: Array.isArray(result.document_reference?.certificate_occurrences)
         ? result.document_reference.certificate_occurrences.map(item => ({
+          label: String(item?.label || ''),
+          value: String(item?.value || ''),
+          location: String(item?.location || ''),
+        })).filter(item => item.value)
+        : [],
+      patient_weight_occurrences: Array.isArray(result.document_reference?.patient_weight_occurrences)
+        ? result.document_reference.patient_weight_occurrences.map(item => ({
+          label: String(item?.label || ''),
+          value: String(item?.value || ''),
+          location: String(item?.location || ''),
+        })).filter(item => item.value)
+        : [],
+      patient_height_occurrences: Array.isArray(result.document_reference?.patient_height_occurrences)
+        ? result.document_reference.patient_height_occurrences.map(item => ({
           label: String(item?.label || ''),
           value: String(item?.value || ''),
           location: String(item?.location || ''),
@@ -181,6 +219,8 @@ class GeminiClient {
         certificate_number: results.map(result => result.document_reference?.certificate_number).find(Boolean) || '',
         qr_url: results.map(result => result.document_reference?.qr_url).find(Boolean) || '',
         certificate_occurrences: results.flatMap(result => result.document_reference?.certificate_occurrences || []),
+        patient_weight_occurrences: results.flatMap(result => result.document_reference?.patient_weight_occurrences || []),
+        patient_height_occurrences: results.flatMap(result => result.document_reference?.patient_height_occurrences || []),
       },
       findings,
       analysis: {

@@ -15,6 +15,8 @@ function mapClient(row) {
     dog_age: row.get('dog_age'),
     dog_breed: row.get('dog_breed'),
     dog_weight: row.get('dog_weight'),
+    patient_weight: row.get('patient_weight'),
+    patient_height: row.get('patient_height'),
     certificate_validity: row.get('certificate_validity'),
     expedition: row.get('expedition') || '',
     microchip_number: row.get('microchip_number'),

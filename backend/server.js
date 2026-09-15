@@ -24,6 +24,7 @@ const { GeminiClient } = require('./infrastructure/geminiClient');
 const { applyScoringPolicy } = require('./domain/scoringPolicy');
 const { getDocumentPolicy } = require('./domain/documentPolicies');
 const { compareCertificateReferences, buildInternalConsistencyFinding } = require('./domain/certificateReference');
+const { buildPatientMeasurementFinding } = require('./domain/patientMeasurements');
 const { AuditCorrelationStore } = require('./infrastructure/auditCorrelationStore');
 const { verifyQrPage } = require('./infrastructure/qrPageVerifier');
 const { extractEmbeddedHttpsUrls } = require('./infrastructure/documentUrlExtractor');
@@ -358,6 +359,21 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
     }
 
 
+    if (docType === 'MEDICAL_HISTORY_TRANSLATE') {
+      dateSection += `
+      VALIDACIÓN OBLIGATORIA DE MEDIDAS DEL PACIENTE HUMANO
+      - Peso esperado según el Sheet (patient_weight): ${client.patient_weight || 'No disponible'}.
+      - Estatura esperada según el Sheet (patient_height): ${client.patient_height || 'No disponible'}.
+      - Busca Weight/Peso y Height/Estatura en TODAS las páginas y secciones del documento.
+      - No confundas estas medidas con datos de la mascota ni con BMI/IMC.
+      - Agrega CADA aparición del peso a document_reference.patient_weight_occurrences con label, value y location.
+      - Agrega CADA aparición de la estatura a document_reference.patient_height_occurrences con label, value y location.
+      - No dedupliques repeticiones. Si una sola aparición difiere, debe considerarse una inconsistencia crítica.
+      - Reconoce formatos equivalentes: kg/lb para peso y m/cm/pies-pulgadas para estatura.
+      - Devuelve siempre PATIENT_WEIGHT_CONSISTENCY y PATIENT_HEIGHT_CONSISTENCY. Estas reglas se agregan a todas las reglas existentes y no sustituyen ninguna.
+      `;
+    }
+
     const embeddedUrlEvidence = embeddedUrls.length ? JSON.stringify(embeddedUrls) : 'ninguna';
 
     const prompt = `
@@ -441,6 +457,29 @@ app.post('/api/validate', upload.single('file'), async (req, res) => {
       mimeType,
       filename,
     });
+
+    if (docType === 'MEDICAL_HISTORY_TRANSLATE') {
+      const measurements = [
+        buildPatientMeasurementFinding({
+          kind: 'weight',
+          occurrences: aiResult.document_reference?.patient_weight_occurrences,
+          expected: client.patient_weight,
+        }),
+        buildPatientMeasurementFinding({
+          kind: 'height',
+          occurrences: aiResult.document_reference?.patient_height_occurrences,
+          expected: client.patient_height,
+        }),
+      ];
+      const measurementCodes = new Set(measurements.map(item => item.finding.code));
+      aiResult.findings = aiResult.findings.filter(finding => !measurementCodes.has(finding.code));
+      aiResult.findings.push(...measurements.map(item => item.finding));
+      aiResult.document_reference = {
+        ...aiResult.document_reference,
+        patient_weight_occurrences: measurements[0].occurrences,
+        patient_height_occurrences: measurements[1].occurrences,
+      };
+    }
 
     let correlation = null;
     if (['ADI', 'CERTIFICACION_ADI', 'REVISION'].includes(docType)) {

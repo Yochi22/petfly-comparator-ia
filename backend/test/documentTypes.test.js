@@ -24,3 +24,8 @@ test('Training Assessment usa las reglas de Informe Entrenamiento', () => {
   assert.equal(detectDocType('Training Assessment - Luna.pdf'), 'INFORME_ENTRENAMIENTO');
   assert.equal(detectDocType('training_assessment_EN-US.pdf'), 'INFORME_ENTRENAMIENTO');
 });
+
+test('reconoce cualquier archivo terminado en Translate en-US.pdf', () => {
+  assert.equal(detectDocType('Laura Romero Translate en-US.pdf'), 'MEDICAL_HISTORY_TRANSLATE');
+  assert.equal(detectDocType('Medical History Translate.pdf'), 'MEDICAL_HISTORY_TRANSLATE');
+});

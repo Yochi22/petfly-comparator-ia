@@ -36,7 +36,7 @@ function detectDocType(filename) {
   if (/^(certificacion|certificado|certificate)\s+(de\s+)?adi\b/.test(name)) return DOCUMENT_TYPES.CERTIFICACION_ADI;
   if (name.startsWith('adi')) return DOCUMENT_TYPES.ADI;
   if (name.startsWith('k9')) return DOCUMENT_TYPES.K9;
-  if (name.startsWith('medical history translate')) return DOCUMENT_TYPES.MEDICAL_HISTORY_TRANSLATE;
+  if (name.startsWith('medical history translate') || name.endsWith('translate en us.pdf')) return DOCUMENT_TYPES.MEDICAL_HISTORY_TRANSLATE;
   return DOCUMENT_TYPES.GENERIC;
 }
 
