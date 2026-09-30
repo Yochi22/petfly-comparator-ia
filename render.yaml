@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: petfly-comparator-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: MAX_FILE_MB
+        value: 150
+      - key: GEMINI_INLINE_MAX_MB
+        value: 20
+      - key: GEMINI_PDF_MAX_MB
+        value: 50
+      - key: GEMINI_PDF_CHUNK_MB
+        value: 40
+      - key: MAX_CONCURRENT_AUDITS
+        value: 3
+      - key: AUDIT_QUEUE_TIMEOUT_MS
+        value: 180000
+      - key: GEMINI_TIMEOUT_MS
+        value: 120000
+      - key: CLIENT_CACHE_TTL_MS
+        value: 60000
+      - key: AUDIT_CORRELATION_TTL_MS
+        value: 86400000
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_PROJECT_ID
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

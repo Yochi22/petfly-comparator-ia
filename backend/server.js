@@ -40,6 +40,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 1, fileSize: config.maxFileBytes, fields: 5 },
