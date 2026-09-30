@@ -77,7 +77,7 @@ export default function App() {
     try {
       await waitForBackend(API_URL, attempt => {
         const seconds = Math.min(90, attempt * 3);
-        setBackendStatus(`Iniciando el servidor gratuito... ${seconds}s`);
+        setBackendStatus(`Preparando el sistema... ${seconds}s`);
       });
       setBackendStatus('Servidor disponible. Cargando clientes...');
       const res = await fetch(`${API_URL}/api/clients?refresh=true`);
@@ -277,7 +277,7 @@ export default function App() {
               <div>
                 <strong>{backendStatus}</strong>
                 <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                  El plan gratuito puede tardar hasta un minuto en despertar. No recargues la página.
+                  Estamos preparando todo para comenzar. Esto puede tardar unos instantes.
                 </p>
               </div>
             </div>
