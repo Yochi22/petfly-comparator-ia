@@ -22,6 +22,34 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { inferCertificateDocumentType, reconcileAuditResults } from './certificateCorrelation';
 
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+async function waitForBackend(apiUrl, onRetry) {
+  const deadline = Date.now() + 90_000;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt += 1;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const response = await fetch(`${apiUrl}/health`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (response.status === 404) return;
+      const data = await response.json();
+      if (response.ok && data?.status === 'ok') return;
+    } catch {
+      // Un cold start puede cerrar o demorar las primeras conexiones.
+    } finally {
+      clearTimeout(timeout);
+    }
+    onRetry(attempt);
+    await sleep(3_000);
+  }
+  throw new Error('El servidor no respondió después de 90 segundos. Intenta actualizar nuevamente.');
+}
+
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   console.log("🚀 Comparador Petfly v1.2 - Backend en Oregon");
@@ -33,6 +61,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [backendStatus, setBackendStatus] = useState('');
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [batchProgress, setBatchProgress] = useState({ completed: 0, total: 0 });
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,8 +73,15 @@ export default function App() {
 
   const fetchClients = useCallback(async () => {
     setIsLoading(true);
+    setBackendStatus('Comprobando disponibilidad del servidor...');
     try {
+      await waitForBackend(API_URL, attempt => {
+        const seconds = Math.min(90, attempt * 3);
+        setBackendStatus(`Iniciando el servidor gratuito... ${seconds}s`);
+      });
+      setBackendStatus('Servidor disponible. Cargando clientes...');
       const res = await fetch(`${API_URL}/api/clients?refresh=true`);
+      if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setClients(data);
@@ -59,6 +95,7 @@ export default function App() {
       setClients([]);
     } finally {
       setIsLoading(false);
+      setBackendStatus('');
     }
   }, [API_URL]);
 
@@ -234,6 +271,17 @@ export default function App() {
       <main className="main-grid">
         
         <section>
+          {isLoading && backendStatus && (
+            <div className='glass card' role='status' style={{ marginBottom: '1rem', borderLeft: '4px solid var(--warning)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <RefreshCcw size={18} className='animate-spin' />
+              <div>
+                <strong>{backendStatus}</strong>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                  El plan gratuito puede tardar hasta un minuto en despertar. No recargues la página.
+                </p>
+              </div>
+            </div>
+          )}
           {error && (
             <div className="glass card" role="alert" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--error)', color: 'var(--error)' }}>
               {error}
