@@ -14,7 +14,7 @@ function decodeCanvas(canvas) {
   const full = decodeImageData(context.getImageData(0, 0, canvas.width, canvas.height));
   if (full) return full;
 
-  for (const divisions of [2, 3, 4]) {
+  for (const divisions of [3]) {
     const tileWidth = Math.min(canvas.width, Math.ceil((canvas.width / divisions) * 1.35));
     const tileHeight = Math.min(canvas.height, Math.ceil((canvas.height / divisions) * 1.35));
     const stepX = Math.max(1, Math.floor((canvas.width - tileWidth) / Math.max(1, divisions - 1)));
@@ -41,7 +41,7 @@ async function decodeQrUrls(buffer, mimeType) {
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
         const page = await document.getPage(pageNumber);
         const base = page.getViewport({ scale: 1 });
-        const scale = Math.max(2, Math.min(5, 3600 / Math.max(base.width, base.height)));
+        const scale = Math.max(1.5, Math.min(3, 2200 / Math.max(base.width, base.height)));
         const viewport = page.getViewport({ scale });
         const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
@@ -53,7 +53,7 @@ async function decodeQrUrls(buffer, mimeType) {
     }
   } else if (['image/png', 'image/jpeg'].includes(mimeType)) {
     const image = await loadImage(buffer);
-    const scale = Math.min(1, 2400 / Math.max(image.width, image.height));
+    const scale = Math.min(1, 2200 / Math.max(image.width, image.height));
     const canvas = createCanvas(Math.ceil(image.width * scale), Math.ceil(image.height * scale));
     canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     urls.push(...collectUrls(decodeCanvas(canvas)));
